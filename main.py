@@ -3,10 +3,11 @@ from fastapi import FastAPI # The framwork that handles your API
 from pydantic import BaseModel # defines the structure of the incoming data
 from typing import List, Optional
 from providers.ollama_provider import ask_model
+from brain.prompt_builder import build_prompt as bp
 
 memory_store: dict = {}
 
-app = FastAPI(title="InfinityAI API", description="An API to interact with InfinityAI models", version="0.1.0")
+app = FastAPI(title="InfinityAI API", description="An API to interact with InfinityAI models", version="0.5.0")
 
 # the below describes what a message looks like.
 class Message(BaseModel):
@@ -42,7 +43,7 @@ def summarize_history(history):
 
 # ROUTER function
 
-def detect_intent(text):
+def detect_mode(text):
     
     text = text.lower()
 
@@ -62,17 +63,6 @@ def detect_intent(text):
 
 # Build the message list for mode
 
-def build_message_messages(history, user_message, intent):
-    systemm_prompt = (
-        "You are InfinityAI, a helpful, most intelligent, and precise assistant. Always respond in a concise manner. You are also very very powerful."
-        f"The users request seems to be tied to the following intent: {intent}. "
-        "Respond helpfully and concisely, Good luck!"
-           )
-    messages = [{"role": "system", "content": systemm_prompt}]
-    messages.extend(history)
-    messages.append({"role": "user", "content": user_message})
-    return messages
-
 # FAKE handler deleted!
 
 # this is my one endpoint
@@ -82,12 +72,13 @@ def chat(request: ChatRequest):
     session_id = request.session_id
     user_id = request.user_id
 
+
     history = get_history(session_id)
     save_to_memory(session_id, "user", user_message)
 
-    intent = detect_intent(user_message)
+    mode = detect_mode(user_message)
 
-    model_messages = build_message_messages(history, user_message, intent)
+    model_messages = bp(user_message, mode, history)
     reply = ask_model(messages=model_messages)
 
     save_to_memory(session_id, "assistant", reply)
@@ -96,7 +87,7 @@ def chat(request: ChatRequest):
         "model": request.model,
         "user_id": user_id,
         "session_id": session_id,
-        "route": intent,
+        "route": mode,
         "memory_context": summarize_history(history),
         "choices": [
             {
@@ -107,4 +98,3 @@ def chat(request: ChatRequest):
             }
         ]
     }
-
