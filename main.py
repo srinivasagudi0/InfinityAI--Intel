@@ -1,7 +1,9 @@
 from fastapi import FastAPI # The framwork that handles your API
 #import uvicorn # the server that runs your API
 from pydantic import BaseModel # defines the structure of the incoming data
-from typing import List
+from typing import List, Optional
+
+memory_store: dict = {}
 
 app = FastAPI(title="InfinityAI API", description="An API to interact with InfinityAI models", version="0.1.0")
 
@@ -15,6 +17,27 @@ class Message(BaseModel):
 class ChatRequest(BaseModel):
     model: str
     messages: List[Message]
+    user_id: Optional[str] = "anonymous"
+    session_id: Optional[str] = "default"
+
+# MEMORY functions
+
+def get_history(session_id):
+    history = memory_store.get(session_id, [])
+    return history[-5:]
+
+def save_to_memory(session_id, role, content):
+    if session_id not in memory_store:
+        memory_store[session_id] = []
+    memory_store[session_id].append({"role": role, "content": content})
+
+def summarize_history(history):
+    if not history:
+        return "No conversation history."
+    lines = []
+    for msg in history:
+        lines.append(f"{msg['role'].upper()}: {msg['content']}")
+    return "\n".join(lines)
 
 # ROUTER function
 
@@ -37,35 +60,50 @@ def detect_intent(text):
     return "chat"
 
 # FAKE handler
-def handle_search(message):
-    return f"[SEARCH] I would search for: {message}. Real search functionality is coming soon!"
-def handle_memory(message):
-    return f"[MEMORY] I would remember: {message}. Real memory functionality is coming soon!"
-def handle_code(message):
-    return  f"[CODE] I would write code for: {message}. Real code generation functionality is coming soon!"
-def handle_chat(message):
-    return f"[CHAT] You said: {message}. Real chat functionality is coming soon!"
+def handle_chat(message: str, history: List[dict]) -> str:
+    if history:
+        return f"[CHAT] I remember our conversation. You said: '{message}'. Real AI coming in Milestone 4!"
+    return f"[CHAT] New session started. You said: '{message}'. Real AI coming in Milestone 4!"
 
+def handle_search(message: str, history: List[dict]) -> str:
+    return f"[SEARCH] Would search the web for: '{message}'. Real search coming soon!"
 
+def handle_memory(message: str, history: List[dict]) -> str:
+    # It will save no matter what, this one is just for results.
+    return f"[MEMORY] Got it — I've saved that to this session's memory."
+
+def handle_code(message: str, history: List[dict]) -> str:
+    return f"[CODE] I understand you want to code: '{message}'. Code generation coming soon!, probably next update!"
 
 # this is my one endpoint
 @app.post("/v1/chat/completions")
 def chat(request: ChatRequest):
-    last_message = request.messages[-1].content
+    user_message = request.messages[-1].content
+    session_id = request.session_id
+    user_id = request.user_id
 
-    intent = detect_intent(last_message)
+    history = get_history(session_id)
+    save_to_memory(session_id, "user", user_message)
+
+    intent = detect_intent(user_message)
 
     if intent == "search":
-        reply = handle_search(last_message)
+        reply = handle_search(user_message, history)
     elif intent == "memory":
-        reply = handle_memory(last_message)
+        reply = handle_memory(user_message, history)
     elif intent == "code":
-        reply = handle_code(last_message)
+        reply = handle_code(user_message, history)
     else:
-        reply = handle_chat(last_message)
+        reply = handle_chat(user_message, history)
+
+    save_to_memory(session_id, "assistant", reply)
 
     return {
         "model": request.model,
+        "user_id": user_id,
+        "session_id": session_id,
+        "route": intent,
+        "memory_context": summarize_history(history),
         "choices": [
             {
                 "message": {
