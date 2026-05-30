@@ -19,4 +19,3 @@ def ask_model(model=DEFAULT_MODEL, messages:list=None):
         return "Sorry, I'm having trouble connecting to the model right now."
     except Exception as exc:
         return f"An error occurred: {str(exc)}"
-    

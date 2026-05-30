@@ -3,11 +3,36 @@ from fastapi import FastAPI # The framwork that handles your API
 from pydantic import BaseModel # defines the structure of the incoming data
 from typing import List, Optional
 from providers.ollama_provider import ask_model
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from brain.prompt_builder import build_prompt as bp
+from dotenv import load_dotenv
+from fastapi import Depends, HTTPException
+import os
 
 memory_store: dict = {}
 
-app = FastAPI(title="InfinityAI API", description="An API to interact with InfinityAI models", version="0.5.0")
+load_dotenv() # Load environment variables from .env file
+
+app = FastAPI(title="InfinityAI API", description="An API to interact with InfinityAI models", version="0.6.0")
+
+# CORS 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True
+)
+
+# API key protection
+API_KEY = os.getenv("INFINITYAI_API_KEY", "default-key")
+api_key = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+def verify_key(key):
+    if key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    return key
 
 # the below describes what a message looks like.
 class Message(BaseModel):
@@ -63,11 +88,28 @@ def detect_mode(text):
 
 # Build the message list for mode
 
+@app.get("/v1/models", dependencies = [Depends(verify_key)])
+def list_models():
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": "infinity-1",
+                "object": "model",
+                "owned_by": "infinityai",
+                "description": "InfinityAI prototyp - powered by QWEN 2.5(for now)"
+            }
+        ]
+    }
 # FAKE handler deleted!
+@app.get("/health")
+def health():
+    return {"status": "ok", "version": "0.6.0"}
+
 
 # this is my one endpoint
 @app.post("/v1/chat/completions")
-def chat(request: ChatRequest):
+def chat(request: ChatRequest, dependencies=[Depends(verify_key)]):
     user_message = request.messages[-1].content
     session_id = request.session_id
     user_id = request.user_id
@@ -98,3 +140,10 @@ def chat(request: ChatRequest):
             }
         ]
     }
+
+
+# __Notes__
+# to host it publicly (same internet)
+# use `uvicorn main:app --host 0.0.0.0 --port 8000`
+# then find your public IP using `ifconfig | grep inet | grep -v 127.0.0.1`
+# then simply do this http://YOUR_PUBLIC_IP:8000/v1/chat/completions to access the API from anywhere on the same internet (with the right API key of course)
