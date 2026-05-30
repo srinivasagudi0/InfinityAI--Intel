@@ -2,6 +2,7 @@ from fastapi import FastAPI # The framwork that handles your API
 #import uvicorn # the server that runs your API
 from pydantic import BaseModel # defines the structure of the incoming data
 from typing import List, Optional
+from providers.ollama_provider import ask_model
 
 memory_store: dict = {}
 
@@ -59,21 +60,20 @@ def detect_intent(text):
     
     return "chat"
 
-# FAKE handler
-def handle_chat(message: str, history: List[dict]) -> str:
-    if history:
-        return f"[CHAT] I remember our conversation. You said: '{message}'. Real AI coming in Milestone 4!"
-    return f"[CHAT] New session started. You said: '{message}'. Real AI coming in Milestone 4!"
+# Build the message list for mode
 
-def handle_search(message: str, history: List[dict]) -> str:
-    return f"[SEARCH] Would search the web for: '{message}'. Real search coming soon!"
+def build_message_messages(history, user_message, intent):
+    systemm_prompt = (
+        "You are InfinityAI, a helpful, most intelligent, and precise assistant. Always respond in a concise manner. You are also very very powerful."
+        f"The users request seems to be tied to the following intent: {intent}. "
+        "Respond helpfully and concisely, Good luck!"
+           )
+    messages = [{"role": "system", "content": systemm_prompt}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+    return messages
 
-def handle_memory(message: str, history: List[dict]) -> str:
-    # It will save no matter what, this one is just for results.
-    return f"[MEMORY] Got it — I've saved that to this session's memory."
-
-def handle_code(message: str, history: List[dict]) -> str:
-    return f"[CODE] I understand you want to code: '{message}'. Code generation coming soon!, probably next update!"
+# FAKE handler deleted!
 
 # this is my one endpoint
 @app.post("/v1/chat/completions")
@@ -87,14 +87,8 @@ def chat(request: ChatRequest):
 
     intent = detect_intent(user_message)
 
-    if intent == "search":
-        reply = handle_search(user_message, history)
-    elif intent == "memory":
-        reply = handle_memory(user_message, history)
-    elif intent == "code":
-        reply = handle_code(user_message, history)
-    else:
-        reply = handle_chat(user_message, history)
+    model_messages = build_message_messages(history, user_message, intent)
+    reply = ask_model(messages=model_messages)
 
     save_to_memory(session_id, "assistant", reply)
 
@@ -113,3 +107,4 @@ def chat(request: ChatRequest):
             }
         ]
     }
+
