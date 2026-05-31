@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# test because i will add my own ip address to this file and i dont want it to be public
+
+test_api.py

@@ -1,6 +1,6 @@
 import requests
 
-BASE_URL = "http://192.168.1.45:8000"   # replace with your IP
+BASE_URL = "http://192.168.1.7:8000"   # replace with your IP
 API_KEY  = "my-secret-key-123"           # must match your .env
 
 headers = {

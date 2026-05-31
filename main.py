@@ -29,7 +29,7 @@ app.add_middleware(
 API_KEY = os.getenv("INFINITYAI_API_KEY", "default-key")
 api_key = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-def verify_key(key):
+def verify_key(key: str = Depends(api_key)):
     if key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     return key
@@ -108,8 +108,8 @@ def health():
 
 
 # this is my one endpoint
-@app.post("/v1/chat/completions")
-def chat(request: ChatRequest, dependencies=[Depends(verify_key)]):
+@app.post("/v1/chat/completions", dependencies=[Depends(verify_key)])
+def chat(request: ChatRequest):
     user_message = request.messages[-1].content
     session_id = request.session_id
     user_id = request.user_id
@@ -129,6 +129,7 @@ def chat(request: ChatRequest, dependencies=[Depends(verify_key)]):
         "model": request.model,
         "user_id": user_id,
         "session_id": session_id,
+        "mode": mode,
         "route": mode,
         "memory_context": summarize_history(history),
         "choices": [

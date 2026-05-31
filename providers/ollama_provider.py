@@ -1,6 +1,6 @@
 import httpx # sends HTTP requests- same idea as broser fetching a page
 
-OLLAMA_URL = "http://127.0.0.1:11434/api/chatm" # Ollama runs locally on this port
+OLLAMA_URL = "http://127.0.0.1:11434/api/chat" # Ollama runs locally on this port
 DEFAULT_MODEL = "qwen2.5" # the name of your Ollama model
 
 def ask_model(model=DEFAULT_MODEL, messages:list=None):
