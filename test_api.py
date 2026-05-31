@@ -25,3 +25,4 @@ response = requests.post(f"{BASE_URL}/v1/chat/completions", json=payload, header
 data = response.json()
 print("Mode:", data["mode"])
 print("Reply:", data["choices"][0]["message"]["content"])
+

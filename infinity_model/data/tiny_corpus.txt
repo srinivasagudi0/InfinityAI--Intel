@@ -1,0 +1,23 @@
+The cat sat on the mat.
+The dog ran in the park.
+The sun rises in the morning and sets in the evening.
+Water flows downhill toward the sea.
+Birds fly south in winter and north in summer.
+The moon orbits the earth.
+Fire is hot and ice is cold.
+The sky is blue during the day and black at night.
+Trees grow tall when they have sunlight and water.
+Rain falls from clouds when the air is cold enough.
+Humans need food, water, and sleep to survive.
+A sentence is a group of words that expresses a complete thought.
+Numbers can be added, subtracted, multiplied, and divided.
+The alphabet has twenty-six letters.
+Reading makes you smarter.
+Practice makes you better at any skill.
+Computers process information using binary code.
+An API is a way for two programs to talk to each other.
+A model learns patterns from data.
+The more data a model sees, the better it understands language.
+InfinityAI is an AI platform built from scratch.
+Infinity-0 is the first native model in the InfinityAI family.
+Every great journey begins with a single step.
