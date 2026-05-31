@@ -1,4 +1,5 @@
 import os
+import json
 
 class Tokenizer:
     def __init__(self):
@@ -31,40 +32,30 @@ class Tokenizer:
         return ''.join([self.id_to_char.get(id, "<UNK>") for id in ids])
 
     def save_vocab(self, file_path):
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        dir_name = os.path.dirname(file_path)
+
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+        data = {
+            "vocab_size": self.vocab_size,
+            "char_to_id": self.char_to_id,
+            "id_to_char": self.id_to_char
+        }
         with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(f"<PAD>\t0\n")
-            f.write(f"<UNK>\t1\n")
-            # save regular charecters sorted by ID, skip the special tokens
-            sorted_chars = sorted([(char, id) for char, id in self.char_to_id.items() if char not in ["<PAD>", "<UNK>"]], key=lambda x: x[1])
-            for char, id in sorted_chars:
-                f.write(f"{repr(char)}\t{id}\n")
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
         print(f"Vocabulary saved to {file_path}.")
 
     def load_vocab(self, file_path):
-    # load previosly saved vocab from file
-        self.char_to_id = {}
-        self.id_to_char = {}
         with open(file_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line: # skip empty lines as it can cause error when spliting
-                    continue
-                parts = line.split('\t')
-                if len(parts) != 2:  # skip malformed lines
-                    continue
-                char_repr, id_str = parts
-
-                if char_repr in ("<PAD>", "<UNK>"):
-                    char = char_repr
-                else:
-                    char = eval(char_repr)  # convert repr back to char
-
-                id = int(id_str)
-                self.char_to_id[char] = id
-                self.id_to_char[id] = char
-        self.vocab_size = len(self.char_to_id)
+            data = json.load(f)
+        
+        self.vocab_size = data["vocab_size"]
+        self.char_to_id = data["char_to_id"]
+        self.id_to_char = {int(k): v for k, v in data["id_to_char"].items()} # convert keys back to int
+        
         print(f"Vocabulary loaded from {file_path}. Size: {self.vocab_size} characters.")
+
 
 
 if __name__ == "__main__":
@@ -104,7 +95,7 @@ if __name__ == "__main__":
     print()
 
     # save the vocab
-    vocab_path = "data/vocab.txt"
+    vocab_path = "data/vocab.json"
     tokenizer.save_vocab(vocab_path)
 
     # test loading it back
