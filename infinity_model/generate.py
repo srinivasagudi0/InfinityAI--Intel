@@ -14,7 +14,7 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 def load_model():
     # Load tkenizer
     tokenizer = Tokenizer()
-    tokenizer.load_vocab(VOCAB_PATH) # 
+    tokenizer.load_vocab(VOCAB_PATH) 
     
     # Build model architecture
     model = InfinityTransformer(vocab_size=VOCAB_SIZE).to(DEVICE) # creats a fresh model and moves it to CPU
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     test = [
         ("The ", 100, 0.5),
         ("The cat ", 80, 0.8),
-        ("Water ", 80, 0.8),
+        ("Artificial Intelligence ", 80, 0.5),
         ("The ", 100, 1.2),
         ("Who are you? ", 100, 1.5), # this one is wild question, the model has never seen it before, so it will have to be creative in its response
     ]
@@ -109,4 +109,3 @@ if __name__ == "__main__":
         print(f"Output: {repr(prompt +output)}")
         print()
         print("-"*50)
-
