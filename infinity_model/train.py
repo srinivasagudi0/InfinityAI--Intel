@@ -11,19 +11,30 @@ import torch
 from tokenizer import Tokenizer
 from dataset import InfinityDataset
 from model import InfinityTransformer, VOCAB_SIZE, BLOCK_SIZE
+import time
 
 # Config
-STEPS = 1000 # how many training step to run 
-BATCH_SIZE = 4 # examples per step
+STEPS = 3000 # how many training step to run 
+BATCH_SIZE = 8 # examples per step
 LEARNING_RATE  = 1e-3 # how big each weight nudge is (0.001)
-EVAL_EVERY = 100 # print loss every 100 steps
-SAVE_PATH = "checkpoints/infinity-0.pt"
+EVAL_EVERY = 200 # print loss every 100 steps
+PATIENCE  = 5 # stop early if val loss doesn't improve this many evalss
+
 
 CORPUS_PATH = "data/tiny_corpus.txt"
 VOCAB__PATH = "data/vocab.json"
 
 # Use gpu if available
 DEVICE ="cuda" if torch.cuda.is_available() else "cpu"
+
+
+def get_run_dir():
+    os.makedirs("runs", exist_ok=True)
+    existing = [d for d in os.listdir("runs") if d.startswith("run")]
+    num = len(existing) + 1
+    path = f"runs/run_{num:03d}"
+    os.makedirs(path)
+    return path
 
 # Estimate loss
 # We check loss on both train and val data every 100 steps and print it out
@@ -57,20 +68,28 @@ def estimate_loss(model, dataset, eval_steps=100): # test the moddel fr 100 batc
 # Main training loop
 
 def train():
-    
-    print("="*50)
-    print("Infinity-0 Training")
-    print("="*50)
 
+    run_dir = get_run_dir()
+    log_path = os.path.join(run_dir, "log.txt")
+    ckpt_path = os.path .join(run_dir, "best_checkpoint.pt")
+    print(f"Run folder : {run_dir}")
+
+    def log(msg):
+        print(msg)
+        with open(log_path,"a") as f:
+            f.write(msg + "\n")
+
+    log("=="*25)
+    log(f"Infinity-0 Training - {run_dir}")
     print(f"Device: {DEVICE}")
-    print(f"Steps: {STEPS}")
-    print(f"Batch Size: {BATCH_SIZE}")
-    print(f"Block Size: {BLOCK_SIZE}")
-    print()
+    log(f"Steps: {STEPS}")
+    log(f"Batch Size: {BATCH_SIZE}")
+    log(f"Block Size: {BLOCK_SIZE}")
+    log(f"Block Size: {BLOCK_SIZE}")
 
     # Step 1 - load dataset (tokenizer is loaded insi)
     dataset = InfinityDataset(CORPUS_PATH, VOCAB__PATH)
-    print()
+    log("Dataset loaded.")
 
     #Step 2 - Create model and move to devce
     model = InfinityTransformer(
@@ -78,20 +97,27 @@ def train():
     ).to(DEVICE)
 
     total_params = sum(p.numel() for p in model.parameters())
-    print(f"Model has {total_params:,} parameters")
-    print()
+    log(f"Model has {total_params:,} parameters")
 
     # step 3 - create an optimizer
     # AdamW is like a smarter version of gradeint descent
     # It adjust elaning rate for each weight indinvidually
     optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 
+    log(f"Parameters : {sum(p.numel() for p in model.parameters()):,}")
+    log(f"Corpus : {dataset.tokenizer.vocab_size:,} vocab chars")
+
+
     # step 4 make chekpoints folder if it doent exit
     os.makedirs("checkpoints", exist_ok=True)
 
+
     # step 5 - training loop!!!!!!!!!!!!!!!
+    best_val = float('inf')
+    start_time = time.time()
+    no_improve = 0
     model.train() # already in train mode but just to be sure
-    best_val_loss = float("inf")
+
 
     for step in range(STEPS):
 
@@ -99,20 +125,36 @@ def train():
 
         if step % EVAL_EVERY == 0:
             losses = estimate_loss(model, dataset, eval_steps=100)
-            print(f"Step {step}: Train Loss: {losses['train']:.4f}, Val Loss: {losses['val']:.4f}") 
+            elapsed = time.time() - start_time
+            msg = (f"step {step:4d} | "
+                   f"train : {losses['train']:.4f} | "
+                   f"val : {losses['val']:.4f}"
+                   f"time: {elapsed:.0f}a"
+            )
 
             # save the best model 
             if losses['val'] < best_val_loss:
                 best_val_loss = losses['val']
+                no_improve = 0
                 torch.save({
                     "step": step,
                     "model_state": model.state_dict(),
                     "optimizer_state": optimizer.state_dict(),
-                    "val_loss": best_val_loss,
-                    "vocab_size": VOCAB_SIZE}, SAVE_PATH
-                )
+                    "val_loss": best_val,
+                    "vocab_size": VOCAB_SIZE,
+                    "run_dir": run_dir,
+                }, ckpt_path)
 
-                print(f" -> checkpoint save ((val loss: {best_val_loss:.4f}))")
+                actual_checkpoint = "checkpoints/infinity-0.pt"
+                torch.save(torch.load(ckpt_path), actual_checkpoint)
+                msg += " (checkpoint saved)"
+            else:
+                no_improve +=1
+                msg += f" (no improve {no_improve}/{PATIENCE})"
+                log(msg)
+                if no_improve >= PATIENCE:
+                    log("Early stopping due to no improvement in validation loss.")
+                    break
 
         # get a batch
         x, y = dataset.get_batch("train", batch_size=BATCH_SIZE) # x = input y = target toekns
@@ -141,12 +183,13 @@ def train():
 
         # final eval
     losses = estimate_loss(model, dataset, eval_steps=100)
-    print("="*50)
-    print(f"Training complete.")
-    print(f"Final Train: {losses['train']:.4f} ")
-    print(f"Final val loss: {losses['val']:.4f}")
-    print()
-    print("="*50)   
+    log("==" *25)
+    log(f"Done. Best val loss: {best_val_loss:.4f}")
+    log(f"Final train loss: {losses['train']:.4f}")
+    log(f"Final val loss: {losses['val']:.4f}")
+    log(f"Model saved to {ckpt_path}")
+    log("==" *25)
+
 
 if __name__ == "__main__":
     train()
@@ -154,3 +197,4 @@ if __name__ == "__main__":
 
 # i ran the train function and it started overfitting (the model memorizeed the text instead of learning patterns). 
 # To fix this, I need to increase the size if the tiny coprus
+

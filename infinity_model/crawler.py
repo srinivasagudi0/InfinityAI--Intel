@@ -1,149 +1,122 @@
-# USED this to expand tink
-#  Infinity-0 Data Crawler
-
 import os
 import re
 import time
-from bs4 import BeautifulSoup
 import requests
 
-# Config 
-
-OUTPUT_PATH = "data/tiny_corpus.txt"
-TARGET_CHARS = 15_000 # stop when we hit this many chars
-CHUNK_SIZE = 1000 # write this many at a time to disk
-SLEEP_BETWEEN = 0.5 # seconds to sleep between requests, so it doesn't look like we're spamming the server
-MIN_LINE_LEN = 40 # Skip lines shorter than this, (usually headers, footers, etc)
-
-# Wikipedia topics to crawl
+OUTPUT_PATH ="data/tiny_corpus.txt"
+TARGET_CHARS = 60_000
+CHUNK_SIZE = 500
+SLEEP_BETWEEN = 1.0
+MIN_LINE_LEN = 40
 TOPICS = [
-    "Artificial_Intelligence", "Machine_Learning", "Neural_Networks",
-    "Robots",
-    ]
+    # Science
+    "Photosynthesis", "Gravity", "Evolution", "Cell_biology",
+    "Atom", "Electricity", "Magnetism", "Solar_system", "Black_hole",
+    "Climate_change", "Ecosystem", "DNA", "Protein", "Neuroscience",
+    # Technology
+    "Artificial_intelligence", "Computer", "Internet", "Robot",
+    "Machine_learning", "Programming_language", "Algorithm",
+    # Language & knowledge
+    "Language", "Writing", "Mathematics", "Logic", "Philosophy",
+    "History", "Library", "Education",
+    # Nature
+    "Ocean", "River", "Mountain", "Forest", "Weather",
+    "Water", "Fire", "Tree", "Bird", "Cat", "Dog",
+    # Society
+    "Democracy", "Economy", "Agriculture", "Medicine", "Music",
+    "Human_brain", "Memory", "Learning", "Communication",
+]
 
 def clean_text(raw):
     lines = raw.splitlines()
     cleaned = []
     for line in lines:
         line = line.strip()
-
-        if not line:
+        if not line or len(line) < MIN_LINE_LEN:
             continue
-
-        if len(line) < MIN_LINE_LEN:
+        special = sum(1 for c in line if not c.isalnum() and not c in ".,!?;:'-\n")
+        if special > len(line) * 0.2:
             continue
-
-        special_count = sum(1 for c in line if not c.isalnum() and c not in " .,!?;:'-\n")
-        if special_count > len(line) * 0.2:   # more than 20% special chars → skip
-            continue
-
-        line = re.sub(r' +', ' ', line)  # collapse multiple spaces
-
-        line = re.sub(r'\[.*?\]', '',line )
-
+        line = re.sub(r' +', ' ', line)
+        line = re.sub(r'\[.*?\]', '', line)
         line = re.sub(r'\([^)]{40,}\)', '', line)
-
-
+        line = line.strip()
         if len(line) < MIN_LINE_LEN:
             continue
-
         cleaned.append(line)
+    return '\n'.join(cleaned)
 
-    return "\n".join(cleaned)
+def fetch_wikipedia(topic):
+    url = f"https://en.wikipedia.org/w/api.php"
 
-
-def fetch_wiki(topic):
-    url = f"https://en.wikipedia.org/wiki/{topic}"
-
-    headers = {
-        "User-Agent": "MOZILLA/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    params = {
+        "action": "query",
+        "format": "json",
+        "titles": topic,
+        "prop": "extracts",
+        "explaintext": True,
+        "exsectionformat": "plain",
+        "redirects": True
     }
 
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+    try: 
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        pages = r.json().get("query", {}).get("pages", {})
 
-        soup = BeautifulSoup(response.text, 'html.parser')
-        content_div = soup.find('div', {'class': 'mw-parser-output'})
-        if not content_div:
-            print(f"No content div found for '{topic}'")
+        page = next(iter(pages.values()))
+        if "missing" in page:
             return ""
-
-        paragraphs = content_div.find_all('p')
-        raw_text = "\n".join(p.get_text() for p in paragraphs)
-        cleaned_text = clean_text(raw_text)
-
-        return cleaned_text
-        
-    
+        return clean_text(page.get("extract", ""))
     except Exception as e:
-        print(f"Error fetching '{topic}': {e}")
-        return ""
-    
-def write_chunk(path, text):
-    with open(path, 'a') as f:
-        for i in range(0, len(text), CHUNK_SIZE):
-            f.write(text[i : i + CHUNK_SIZE])
-    
+        print(f"{topic} FAILED: {e}")
 
-def get_current_size(path):
+def get_file_chars(path):
     if not os.path.exists(path):
         return 0
-    return os.path.getsize(path)
-
-
-def crawl():
-    os.makedirs('data', exist_ok=True)
-
-    print('Target chars:', TARGET_CHARS)
-    print('Topics:', len(TOPICS))
-    print('='*30)
-
-    total_written = 0
-    articles_done = 0
-
-    for topic in TOPICS:
-        #if total_written >= TARGET_CHARS:
-        #    print(f"Target reached - {total_written} chars written.")
-         #   break
-
-        print(f"Fetching '{topic}'...")
-        text = fetch_wiki(topic)
-        if not text:
-            print(f"No content for '{topic}', skipping.")
-            continue
-
-        write_chunk(OUTPUT_PATH, text + "\n\n")
-
-        chars_added = len(text)
-        total_written += chars_added
-        articles_done += 1
-
-        print(f"+{chars_added:,} chars | total: {total_written:,} chars / {TARGET_CHARS:,} chars" )
+    with open(path) as p:
+        return len(p.read())
         
-        print(f"CRAWLED: {topic} | Total articles: {articles_done} | Total chars: {total_written:,}")
+def crawl():
+    os.makedirs("data", exists_ok=True)
+    if os.path.exists(OUTPUT_PATH):
+        os.remove(OUTPUT_PATH)
+        print("Cleared old corpus")
 
+    print(f"TARGET: {TARGET_CHARS} chars")
+    print(f"TOPICS: {len(TOPICS)}")
+    
+    total = 0
+    done = 0
+    for topic in TOPICS:
+        if total >= TARGET_CHARS:
+            break
+        print(f"Fetching {topic}...")
+        
+        text =fetch_wikipedia(topic)
+        if not text:
+            print(f"{topic} had no content, skipping.")
+            time.sleep(SLEEP_BETWEEN)
+            continue
+        with open(OUTPUT_PATH, "a") as f:
+            for i in range(0, len(text), CHUNK_SIZE):
+                f.write(text[i:i+CHUNK_SIZE] + "\n")
+            f.write("\n")
+
+        total += len(text)
+        done += 1
+
+        print(f" +{len(text):,} | Total: {total:,}")
         time.sleep(SLEEP_BETWEEN)
 
-    
+        
     print()
-    print("="*30)
-    print(f"Done. ")
-    print(f"Articles crawled: {articles_done}")
-    print(f"Total charecters : {total_written:,}")
-    print('Saved to :', OUTPUT_PATH)
-
-    actual_size = get_current_size(OUTPUT_PATH)
-    print(f"Actual file size: {actual_size:,} chars on disk")
-    print(f"Total chars : {total_written:,} chars in memory")
-    print(f"Difference (due to encoding, newlines, etc): {actual_size - total_written:,} chars")
-
-    if actual_size >= TARGET_CHARS:
-        print("Target MET - ready to retrain Infinity-0!")
-    else:
-        print(f"Target NOT met - consider adding more topics or increasing target chars. Need {TARGET_CHARS - actual_size:,} more chars.")
-
+    print("=="*50)
+    actual = get_file_chars(OUTPUT_PATH)
+    print(f"Articles: {done}")
+    print(f"Total chars: {actual:,}")
+    print("Ready to train!" if actual >= TARGET_CHARS else "Not quite there, consider adding more topics.")
 
 if __name__ == "__main__":
     crawl()
-
+    
