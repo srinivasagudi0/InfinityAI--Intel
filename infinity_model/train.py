@@ -113,7 +113,7 @@ def train():
 
 
     # step 5 - training loop!!!!!!!!!!!!!!!
-    best_val = float('inf')
+    best_val_loss = float('inf')
     start_time = time.time()
     no_improve = 0
     model.train() # already in train mode but just to be sure
@@ -128,8 +128,8 @@ def train():
             elapsed = time.time() - start_time
             msg = (f"step {step:4d} | "
                    f"train : {losses['train']:.4f} | "
-                   f"val : {losses['val']:.4f}"
-                   f"time: {elapsed:.0f}a"
+                   f"val : {losses['val']:.4f} | "
+                   f"time: {elapsed:.0f}s"
             )
 
             # save the best model 
@@ -140,7 +140,7 @@ def train():
                     "step": step,
                     "model_state": model.state_dict(),
                     "optimizer_state": optimizer.state_dict(),
-                    "val_loss": best_val,
+                    "val_loss": best_val_loss,
                     "vocab_size": VOCAB_SIZE,
                     "run_dir": run_dir,
                 }, ckpt_path)
@@ -151,10 +151,12 @@ def train():
             else:
                 no_improve +=1
                 msg += f" (no improve {no_improve}/{PATIENCE})"
-                log(msg)
-                if no_improve >= PATIENCE:
-                    log("Early stopping due to no improvement in validation loss.")
-                    break
+            log(msg)
+            if no_improve >= PATIENCE:
+                log("Early stopping due to no improvement in validation loss.")
+                break
+
+
 
         # get a batch
         x, y = dataset.get_batch("train", batch_size=BATCH_SIZE) # x = input y = target toekns

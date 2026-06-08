@@ -14,7 +14,7 @@ TEST_PROMPTS = [
     ("Water ", 80, 0.7),
     ("The brain ", 80, 0.8),
     ("Learning ", 80, 0.8),
-    ("Artificial " 80, 0.8)
+    ("Artificial ", 80, 0.8)
 ]
 
 def load_model():
@@ -82,15 +82,16 @@ def score_output(text):
     }
 
 def evaluate():
-    print("=" * 50)
+    print("=="*25)
     print("Infinity-0 - Quality Eval")
-    print("=" * 50)
+    print("==" * 25)
 
     model, tokenizer, step, val_loss = load_model()
-    print(f"Checkpoint : step {step}, val loss {val_loss:.4f}")
+    print(f"Checkpont: step {step}, val loss {val_loss:.4f}")
     print()
-
+    
     total_score = 0
+    scores = []
 
     for prompt, tokens, temp in TEST_PROMPTS:
         output = generate(model, tokenizer, prompt, max_new=tokens, temperature=temp)
@@ -99,36 +100,36 @@ def evaluate():
 
         print(f"Prompt: {repr(prompt)}")
         print(f"Output: {repr(output)}")
-        print(f"Score: {result['score']} / 100")
-        print(f"Words: {result['word_ratio']}")
-        print(f"variety: {result['unique_ratio']}")
-        print(f"unk: {result['unk_ratio']}")
-        print(f"avg_len: {result['avg_word_len']}")
-
-        print()
-        avg =total_score / len(TEST_PROMPTS)
-        
-        print("==" *55)
-        print(f"Average quality score: {avg:.1f} / 100")
+        print(f"Score: {result['score'] /100}")
+        print(f"Words: {result['word_ratio']:.2f}")
+        print(f"Variety: {result['unique_ratio']:.2f}")
+        print(f"UNK Ratio: {result['unk_ratio']:.2f}")
+        print(f"Avg_len: {result['avg_word_len']:.2f}")
         print()
 
-        if avg >= 60:
-            print("Pass - Infinity-0 is producing readable text!")
-            print("Move on.")
-        elif avg >= 40:
-            print("Partial - output is still mostly noisy")
-            print("Crawl more data and re train.")
-        
-        else:
-            print("Fail")
-            print("Crawl more dat,  check hyperparameters, and re train. ")
-            
-        print("="*55)
-        return avg
+        scores.append(result['score'])
+
+    avg = sum(scores) / len(scores)
+
+    print("=="*25)
+    print(f"Average quality score: {avg:.1f} / 100")
+    print()
+
+    if avg > 60:
+        print("Pass = Infinity-0 is ready and producing readable text!")
+    
+    elif avg >=40:
+        print("Partial Pass - Infinity-0  is showing some promise but needs more training and is mostly noisy")
+    else:
+        print('Fail')
+        print("Crawl more data, check parameters and re-train")
+    print("="*50)
+    return avg
 
 if __name__ == "__main__":
     evaluate()
 
+# cd infinity_model
 # python crawler.py
-# python train.py
-# python eval.py
+# python3 train.py
+# python3 eval.py

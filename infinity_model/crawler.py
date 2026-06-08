@@ -4,7 +4,7 @@ import time
 import requests
 
 OUTPUT_PATH ="data/tiny_corpus.txt"
-TARGET_CHARS = 60_000
+TARGET_CHARS = 500_000
 CHUNK_SIZE = 500
 SLEEP_BETWEEN = 1.0
 MIN_LINE_LEN = 40
@@ -34,6 +34,11 @@ def clean_text(raw):
         line = line.strip()
         if not line or len(line) < MIN_LINE_LEN:
             continue
+        # Decode HTML entities first
+        line = re.sub(r'&#\d+;', '', line)  # Remove numeric entities like &#93;
+        line = re.sub(r'&[a-z]+;', '', line)  # Remove named entities like &nbsp;
+        line = re.sub(r'&[#\w]*(?!;)', '', line)  # Remove incomplete entities
+        
         special = sum(1 for c in line if not c.isalnum() and not c in ".,!?;:'-\n")
         if special > len(line) * 0.2:
             continue
@@ -47,29 +52,23 @@ def clean_text(raw):
     return '\n'.join(cleaned)
 
 def fetch_wikipedia(topic):
-    url = f"https://en.wikipedia.org/w/api.php"
-
-    params = {
-        "action": "query",
-        "format": "json",
-        "titles": topic,
-        "prop": "extracts",
-        "explaintext": True,
-        "exsectionformat": "plain",
-        "redirects": True
+    url = f"https://en.wikipedia.org/wiki/{topic}"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' # this header (the line) is written by AI.
     }
 
-    try: 
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        pages = r.json().get("query", {}).get("pages", {})
-
-        page = next(iter(pages.values()))
-        if "missing" in page:
-            return ""
-        return clean_text(page.get("extract", ""))
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        html = response.text
+        # Extract main content between <p> tags
+        content = re.findall(r'<p>(.*?)</p>', html, re.DOTALL)
+        text = ' '.join(content)
+        text = re.sub(r'<[^>]+>', '', text)
+        return clean_text(text)
     except Exception as e:
         print(f"{topic} FAILED: {e}")
+        return ""
 
 def get_file_chars(path):
     if not os.path.exists(path):
@@ -78,7 +77,7 @@ def get_file_chars(path):
         return len(p.read())
         
 def crawl():
-    os.makedirs("data", exists_ok=True)
+    os.makedirs("data", exist_ok=True)
     if os.path.exists(OUTPUT_PATH):
         os.remove(OUTPUT_PATH)
         print("Cleared old corpus")
@@ -119,4 +118,4 @@ def crawl():
 
 if __name__ == "__main__":
     crawl()
-    
+

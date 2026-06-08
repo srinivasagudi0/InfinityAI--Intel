@@ -1,0 +1,10 @@
+==================================================
+Infinity-0 Training - runs/run_002
+Steps: 3000
+Batch Size: 8
+Block Size: 32
+Block Size: 32
+Dataset loaded.
+Model has 107,436 parameters
+Parameters : 107,436
+Corpus : 44 vocab chars
