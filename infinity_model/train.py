@@ -199,4 +199,3 @@ if __name__ == "__main__":
 
 # i ran the train function and it started overfitting (the model memorizeed the text instead of learning patterns). 
 # To fix this, I need to increase the size if the tiny coprus
-
