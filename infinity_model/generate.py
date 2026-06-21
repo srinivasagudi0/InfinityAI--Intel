@@ -6,7 +6,7 @@ from model import InfinityTransformer, VOCAB_SIZE, BLOCK_SIZE
 
 # Config
 CHECKPOINT_PATH = "checkpoints/infinity-0.pt"
-VOCAB_PATH = "data/vocab.json"
+VOCAB_PATH = "data/wword_vocab.json"
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Load everything

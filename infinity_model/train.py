@@ -2,7 +2,7 @@
 # 1. grab a batch of input/target pairs
 # 2. model makes predicrtions (forward pass)
 # 3. measure how wrong the predictions are (loss)
-# 4. figure out which weights caused the error (backpropagation)
+# 4. figure out which weights caused the error (backropagation)
 # 5. nudge those weights in the right direction (optimizer step)
 # reeat
 
@@ -14,7 +14,7 @@ from model import InfinityTransformer, VOCAB_SIZE, BLOCK_SIZE
 import time
 
 # Config
-STEPS = 3000 # how many training step to run 
+STEPS = 5000 # how many training step to run 
 BATCH_SIZE = 8 # examples per step
 LEARNING_RATE  = 1e-3 # how big each weight nudge is (0.001)
 EVAL_EVERY = 200 # print loss every 100 steps
@@ -22,7 +22,7 @@ PATIENCE  = 5 # stop early if val loss doesn't improve this many evalss
 
 
 CORPUS_PATH = "data/tiny_corpus.txt"
-VOCAB__PATH = "data/vocab.json"
+VOCAB__PATH = "data/word_vocab.json"
 
 # Use gpu if available
 DEVICE ="cuda" if torch.cuda.is_available() else "cpu"

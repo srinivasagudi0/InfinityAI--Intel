@@ -2,7 +2,7 @@
 import os
 import torch
 from tokenizer import Tokenizer
-
+from word_tokenizer import WordTokenizer
 # CONFIG
 BLOCK_SIZE = 32 # how many tokens in each training example
 BATCH_SIZE = 4 # how many training examples to grab once, more than 10 will cause my comp to crash
@@ -15,7 +15,7 @@ class InfinityDataset:
         self.block_size = block_size
         self.train_split = train_split
  
-        self.tokenizer = Tokenizer() # create a new empty tokenizer
+        self.tokenizer = WordTokenizer() # create a new empty tokenizer
     
 
         if os.path.exists(vocab_path):
@@ -125,4 +125,5 @@ if __name__ == "__main__":
     print(f"Target shape: {y_val.shape}")
     print(f"Val input text :  {repr(dataset.tokenizer.decode(x_val[0].tolist()))}")
 
-    # end
+    # end This one should give me mmore data 
+    

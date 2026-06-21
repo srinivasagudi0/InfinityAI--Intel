@@ -7,11 +7,11 @@ import torch.nn as nn
 
 # Config
 
-VOCAB_SIZE = 44 # number of unique characters in the corpus
-BLOCK_SIZE = 32 # max sequence length
-N_EMBED = 64 # how many numbers represent each token
+VOCAB_SIZE = 8000 # number of unique characters in the corpus
+BLOCK_SIZE = 64 # max sequence length
+N_EMBED = 128 # how many numbers represent each token
 N_HEADS = 4 # how many attention heads
-N_LAYERS = 2 # how many transformer blocks
+N_LAYERS = 4 # how many transformer blocks
 DROPOUT = 0.1 # randomly zero out 10% of connection during training.
 
 
