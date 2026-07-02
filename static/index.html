@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>InfinityAI</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f6f8;
+      --panel: #ffffff;
+      --panel-2: #eef2f7;
+      --text: #15181e;
+      --muted: #667085;
+      --line: #d8dee8;
+      --accent: #0f766e;
+      --accent-2: #1d4ed8;
+      --danger: #b42318;
+      --shadow: 0 12px 40px rgba(17, 24, 39, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      letter-spacing: 0;
+    }
+    button, input, textarea, select {
+      font: inherit;
+      letter-spacing: 0;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 12px;
+      cursor: pointer;
+      min-height: 38px;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.blue { background: var(--accent-2); border-color: var(--accent-2); color: #fff; }
+    button.danger { color: var(--danger); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      padding: 10px 12px;
+      outline: none;
+    }
+    textarea { resize: vertical; min-height: 88px; }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; }
+    .auth {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .auth-card {
+      width: min(980px, 100%);
+      display: grid;
+      grid-template-columns: 1fr 390px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .auth-brand {
+      padding: 42px;
+      background: #111827;
+      color: #fff;
+      display: grid;
+      align-content: center;
+      gap: 18px;
+    }
+    .auth-brand h1 { margin: 0; font-size: clamp(34px, 6vw, 68px); line-height: .95; }
+    .auth-brand p { margin: 0; max-width: 520px; color: #d1d5db; }
+    .auth-form { padding: 28px; display: grid; gap: 12px; }
+    .auth-form h2 { margin: 0 0 8px; }
+    .switch { display: flex; gap: 8px; }
+    .switch button { flex: 1; }
+    .switch button.active { border-color: var(--accent); color: var(--accent); }
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 238px 1fr;
+    }
+    aside {
+      background: #101828;
+      color: #fff;
+      padding: 18px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 22px;
+    }
+    .brand { font-weight: 800; font-size: 22px; }
+    nav { display: grid; gap: 7px; align-content: start; }
+    nav button {
+      background: transparent;
+      color: #d1d5db;
+      border-color: transparent;
+      text-align: left;
+    }
+    nav button.active { background: #1f2937; color: #fff; border-color: #344054; }
+    .user-box { color: #cbd5e1; font-size: 13px; display: grid; gap: 8px; }
+    main { display: grid; grid-template-rows: auto 1fr; min-width: 0; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    header h1 { margin: 0; font-size: 22px; }
+    header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .status { color: var(--muted); font-size: 13px; text-align: right; }
+    .view { display: none; min-height: 0; padding: 18px; }
+    .view.active { display: grid; }
+    .chat-layout {
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 16px;
+      min-height: 0;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      min-width: 0;
+    }
+    .chat-panel { display: grid; grid-template-rows: 1fr auto; min-height: calc(100vh - 112px); }
+    .messages { padding: 18px; overflow: auto; display: grid; gap: 12px; align-content: start; }
+    .message {
+      max-width: min(760px, 92%);
+      padding: 12px 14px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      border: 1px solid var(--line);
+    }
+    .message.user { justify-self: end; background: #e6f4f1; border-color: #b7d9d2; }
+    .message.assistant { justify-self: start; background: #fff; }
+    .composer { display: grid; gap: 10px; padding: 14px; border-top: 1px solid var(--line); }
+    .composer-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toolbar label { display: flex; grid-template-columns: none; align-items: center; gap: 6px; color: var(--text); }
+    .toolbar input[type="checkbox"] { width: auto; }
+    .side-panel { padding: 14px; display: grid; gap: 14px; align-content: start; }
+    .side-panel h3, .section h2 { margin: 0; }
+    .section {
+      display: grid;
+      grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .form-panel, .list-panel {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+    .list { display: grid; gap: 10px; }
+    .item {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px;
+      display: grid;
+      gap: 8px;
+    }
+    .item-title { font-weight: 700; }
+    .item-meta { color: var(--muted); font-size: 12px; }
+    .item-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .check-list { display: grid; gap: 8px; max-height: 220px; overflow: auto; }
+    .check-list label {
+      display: flex;
+      grid-template-columns: none;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+    }
+    .check-list input { width: auto; }
+    .hidden { display: none !important; }
+    @media (max-width: 860px) {
+      .auth-card, .shell, .chat-layout, .section { grid-template-columns: 1fr; }
+      aside { grid-template-rows: auto auto auto; }
+      nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      nav button { text-align: center; padding-inline: 8px; }
+      .chat-panel { min-height: 65vh; }
+      header { align-items: flex-start; flex-direction: column; }
+      .status { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <section id="auth" class="auth">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <h1>InfinityAI</h1>
+        <p>Your local-first assistant for chat, memory, files, code, agents, workflows, and Jarvis.</p>
+      </div>
+      <form id="authForm" class="auth-form">
+        <div class="switch">
+          <button id="loginTab" class="active" type="button">Log in</button>
+          <button id="registerTab" type="button">Create account</button>
+        </div>
+        <h2 id="authTitle">Log in</h2>
+        <label id="nameLabel" class="hidden">Display name
+          <input id="displayName" autocomplete="name">
+        </label>
+        <label>Email
+          <input id="email" type="email" autocomplete="email" required>
+        </label>
+        <label>Password
+          <input id="password" type="password" autocomplete="current-password" minlength="6" required>
+        </label>
+        <button class="primary" type="submit">Continue</button>
+        <div id="authStatus" class="item-meta"></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="app" class="shell hidden">
+    <aside>
+      <div class="brand">InfinityAI</div>
+      <nav id="nav">
+        <button data-view="chat" class="active">Chat</button>
+        <button data-view="jarvis">Jarvis</button>
+        <button data-view="files">Files</button>
+        <button data-view="memories">Memory</button>
+        <button data-view="agents">Agents</button>
+        <button data-view="workflows">Workflows</button>
+      </nav>
+      <div class="user-box">
+        <div id="userEmail"></div>
+        <button id="logoutBtn">Log out</button>
+      </div>
+    </aside>
+    <main>
+      <header>
+        <div>
+          <h1 id="viewTitle">Chat</h1>
+          <p id="viewSubtitle">Talk with Infinity using memory, files, and agents.</p>
+        </div>
+        <div id="status" class="status">Ready</div>
+      </header>
+
+      <section id="chatView" class="view chat-layout active">
+        <div class="panel chat-panel">
+          <div id="messages" class="messages"></div>
+          <form id="chatForm" class="composer">
+            <div class="toolbar">
+              <select id="agentSelect"></select>
+              <label><input id="memoryToggle" type="checkbox" checked> Memory</label>
+              <label><input id="speakToggle" type="checkbox"> Read replies</label>
+              <button id="listenBtn" type="button">Listen</button>
+              <button id="codeBtn" type="button">Code</button>
+              <button id="newChatBtn" type="button">New chat</button>
+            </div>
+            <div class="composer-row">
+              <textarea id="chatInput" placeholder="Message Infinity..." required></textarea>
+              <button class="primary" type="submit">Send</button>
+            </div>
+          </form>
+        </div>
+        <div class="panel side-panel">
+          <h3>Attach files</h3>
+          <div id="chatFiles" class="check-list"></div>
+          <h3>Run workflow</h3>
+          <select id="workflowSelect"></select>
+          <button id="workflowChatBtn" class="blue" type="button">Use in chat</button>
+        </div>
+      </section>
+
+      <section id="filesView" class="view section">
+        <form id="fileForm" class="panel form-panel">
+          <h2>Upload file</h2>
+          <input id="fileInput" type="file" required>
+          <button class="primary" type="submit">Upload</button>
+        </form>
+        <div class="panel list-panel">
+          <h2>Your files</h2>
+          <div id="filesList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="memoriesView" class="view section">
+        <form id="memoryForm" class="panel form-panel">
+          <h2>Add memory</h2>
+          <textarea id="memoryInput" placeholder="Remember that..."></textarea>
+          <button class="primary" type="submit">Save memory</button>
+        </form>
+        <div class="panel list-panel">
+          <h2>Persistent memory</h2>
+          <div id="memoriesList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="agentsView" class="view section">
+        <form id="agentForm" class="panel form-panel">
+          <h2 id="agentFormTitle">Create agent</h2>
+          <input id="agentName" placeholder="Agent name" required>
+          <input id="agentDescription" placeholder="Description">
+          <textarea id="agentInstructions" placeholder="Instructions" required></textarea>
+          <button class="primary" type="submit">Save agent</button>
+          <button id="agentCancelBtn" type="button" class="hidden">Cancel edit</button>
+        </form>
+        <div class="panel list-panel">
+          <h2>Your agents</h2>
+          <div id="agentsList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="workflowsView" class="view section">
+        <form id="workflowForm" class="panel form-panel">
+          <h2 id="workflowFormTitle">Create workflow</h2>
+          <input id="workflowName" placeholder="Workflow name" required>
+          <input id="workflowDescription" placeholder="Description">
+          <textarea id="workflowSteps" placeholder="One prompt step per line. Use {{input}} and {{previous}}." required></textarea>
+          <input id="workflowInput" placeholder="Test input">
+          <button class="primary" type="submit">Save workflow</button>
+          <button id="workflowRunBtn" class="blue" type="button">Run selected</button>
+          <button id="workflowCancelBtn" type="button" class="hidden">Cancel edit</button>
+        </form>
+        <div class="panel list-panel">
+          <h2>Your workflows</h2>
+          <div id="workflowsList" class="list"></div>
+          <div id="workflowOutput" class="item hidden"></div>
+        </div>
+      </section>
+    </main>
+  </section>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const newId = () => {
+      if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+      return `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    };
+    const state = {
+      mode: "login",
+      token: localStorage.getItem("infinity_token"),
+      view: "chat",
+      sessionId: localStorage.getItem("infinity_session") || newId(),
+      editAgentId: null,
+      editWorkflowId: null,
+      pendingWorkflowId: null,
+      me: null,
+      agents: [],
+      files: [],
+      memories: [],
+      workflows: []
+    };
+    localStorage.setItem("infinity_session", state.sessionId);
+
+    async function api(path, options = {}) {
+      const isForm = options.body instanceof FormData;
+      const headers = isForm ? {} : { "Content-Type": "application/json" };
+      if (state.token) headers.Authorization = `Bearer ${state.token}`;
+      const res = await fetch(path, { ...options, headers: { ...headers, ...(options.headers || {}) } });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error(data.detail || "Request failed");
+      return data;
+    }
+
+    function setStatus(text) { $("status").textContent = text; }
+    function setAuthStatus(text) { $("authStatus").textContent = text; }
+    function escapeText(value) {
+      return String(value || "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[char]));
+    }
+    function jarvisAgent() { return state.agents.find((agent) => agent.is_default) || state.agents[0]; }
+
+    function showAuth() {
+      $("auth").classList.remove("hidden");
+      $("app").classList.add("hidden");
+    }
+
+    function showApp() {
+      $("auth").classList.add("hidden");
+      $("app").classList.remove("hidden");
+      $("userEmail").textContent = state.me?.email || "";
+    }
+
+    async function refresh() {
+      const [me, agents, files, memories, workflows] = await Promise.all([
+        api("/me"),
+        api("/v1/agents"),
+        api("/v1/files"),
+        api("/v1/memories"),
+        api("/v1/workflows")
+      ]);
+      state.me = me;
+      state.agents = agents.data || [];
+      state.files = files.data || [];
+      state.memories = memories.data || [];
+      state.workflows = workflows.data || [];
+      renderAll();
+    }
+
+    async function boot() {
+      if (!state.token) return showAuth();
+      try {
+        await refresh();
+        showApp();
+      } catch {
+        localStorage.removeItem("infinity_token");
+        state.token = null;
+        showAuth();
+      }
+    }
+
+    function setAuthMode(mode) {
+      state.mode = mode;
+      $("loginTab").classList.toggle("active", mode === "login");
+      $("registerTab").classList.toggle("active", mode === "register");
+      $("nameLabel").classList.toggle("hidden", mode === "login");
+      $("authTitle").textContent = mode === "login" ? "Log in" : "Create account";
+    }
+
+    function setView(view) {
+      state.view = view;
+      document.querySelectorAll("#nav button").forEach((button) => {
+        button.classList.toggle("active", button.dataset.view === view);
+      });
+      document.querySelectorAll(".view").forEach((section) => section.classList.remove("active"));
+      $(`${view === "jarvis" ? "chat" : view}View`).classList.add("active");
+      const titles = {
+        chat: ["Chat", "Talk with Infinity using memory, files, and agents."],
+        jarvis: ["Jarvis", "Your default personal assistant with memory and voice ready."],
+        files: ["Files", "Upload text files and attach them to chat."],
+        memories: ["Memory", "Save facts Infinity should keep using."],
+        agents: ["Agents", "Create focused assistants with their own instructions."],
+        workflows: ["Workflows", "Chain prompt steps with input and previous output."]
+      };
+      $("viewTitle").textContent = titles[view][0];
+      $("viewSubtitle").textContent = titles[view][1];
+      renderSelectors();
+    }
+
+    function renderAll() {
+      renderSelectors();
+      renderFiles();
+      renderMemories();
+      renderAgents();
+      renderWorkflows();
+    }
+
+    function renderSelectors() {
+      const jarvis = jarvisAgent();
+      $("agentSelect").innerHTML = [`<option value="">Infinity</option>`]
+        .concat(state.agents.map((agent) => `<option value="${agent.id}">${escapeText(agent.name)}</option>`))
+        .join("");
+      if (state.view === "jarvis" && jarvis) $("agentSelect").value = String(jarvis.id);
+
+      $("workflowSelect").innerHTML = [`<option value="">No workflow</option>`]
+        .concat(state.workflows.map((workflow) => `<option value="${workflow.id}">${escapeText(workflow.name)}</option>`))
+        .join("");
+      if (state.pendingWorkflowId) $("workflowSelect").value = String(state.pendingWorkflowId);
+
+      $("chatFiles").innerHTML = state.files.length
+        ? state.files.map((file) => `
+          <label><input type="checkbox" value="${file.id}"> ${escapeText(file.filename)}</label>
+        `).join("")
+        : `<div class="item-meta">No files uploaded.</div>`;
+    }
+
+    function renderFiles() {
+      $("filesList").innerHTML = state.files.length ? state.files.map((file) => `
+        <div class="item">
+          <div class="item-title">${escapeText(file.filename)}</div>
+          <div class="item-meta">${file.text_available ? "Text available to chat" : "Stored as binary"} - ${escapeText(file.content_type || "unknown")}</div>
+          <div class="item-actions"><button class="danger" onclick="deleteFile(${file.id})">Delete</button></div>
+        </div>
+      `).join("") : `<div class="item-meta">No files yet.</div>`;
+    }
+
+    function renderMemories() {
+      $("memoriesList").innerHTML = state.memories.length ? state.memories.map((memory) => `
+        <div class="item">
+          <div>${escapeText(memory.content)}</div>
+          <div class="item-meta">${escapeText(memory.created_at)}</div>
+          <div class="item-actions"><button class="danger" onclick="deleteMemory(${memory.id})">Delete</button></div>
+        </div>
+      `).join("") : `<div class="item-meta">No saved memories yet.</div>`;
+    }
+
+    function renderAgents() {
+      $("agentsList").innerHTML = state.agents.map((agent) => `
+        <div class="item">
+          <div class="item-title">${escapeText(agent.name)}${agent.is_default ? " - default" : ""}</div>
+          <div>${escapeText(agent.description || "")}</div>
+          <div class="item-meta">${escapeText(agent.instructions)}</div>
+          <div class="item-actions">
+            <button onclick="editAgent(${agent.id})">Edit</button>
+            ${agent.is_default ? "" : `<button class="danger" onclick="deleteAgent(${agent.id})">Delete</button>`}
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderWorkflows() {
+      $("workflowsList").innerHTML = state.workflows.length ? state.workflows.map((workflow) => `
+        <div class="item">
+          <div class="item-title">${escapeText(workflow.name)}</div>
+          <div>${escapeText(workflow.description || "")}</div>
+          <div class="item-meta">${workflow.steps.length} step(s)</div>
+          <div class="item-actions">
+            <button onclick="editWorkflow(${workflow.id})">Edit</button>
+            <button onclick="chooseWorkflow(${workflow.id})">Chat</button>
+            <button class="danger" onclick="deleteWorkflow(${workflow.id})">Delete</button>
+          </div>
+        </div>
+      `).join("") : `<div class="item-meta">No workflows yet.</div>`;
+    }
+
+    function selectedFileIds() {
+      return [...document.querySelectorAll("#chatFiles input:checked")].map((input) => Number(input.value));
+    }
+
+    function appendMessage(role, content) {
+      const el = document.createElement("div");
+      el.className = `message ${role}`;
+      el.textContent = content;
+      $("messages").appendChild(el);
+      $("messages").scrollTop = $("messages").scrollHeight;
+    }
+
+    function speak(text) {
+      if (!$("speakToggle").checked || !("speechSynthesis" in window)) return;
+      speechSynthesis.cancel();
+      speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    }
+
+    async function sendChat(event) {
+      event.preventDefault();
+      const input = $("chatInput");
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      appendMessage("user", text);
+      setStatus("Thinking...");
+      try {
+        const workflowId = Number($("workflowSelect").value || state.pendingWorkflowId || 0) || null;
+        const data = await api("/v1/chat/completions", {
+          method: "POST",
+          body: JSON.stringify({
+            model: "infinity-1",
+            session_id: state.sessionId,
+            messages: [{ role: "user", content: text }],
+            agent_id: Number($("agentSelect").value) || null,
+            workflow_id: workflowId,
+            file_ids: selectedFileIds(),
+            use_memory: $("memoryToggle").checked
+          })
+        });
+        const reply = data.choices[0].message.content;
+        appendMessage("assistant", reply);
+        speak(reply);
+        state.pendingWorkflowId = null;
+        await refresh();
+        setStatus("Ready");
+      } catch (err) {
+        appendMessage("assistant", err.message);
+        setStatus("Error");
+      }
+    }
+
+    window.deleteFile = async (id) => {
+      await api(`/v1/files/${id}`, { method: "DELETE" });
+      await refresh();
+    };
+
+    window.deleteMemory = async (id) => {
+      await api(`/v1/memories/${id}`, { method: "DELETE" });
+      await refresh();
+    };
+
+    window.editAgent = (id) => {
+      const agent = state.agents.find((item) => item.id === id);
+      if (!agent) return;
+      state.editAgentId = id;
+      $("agentFormTitle").textContent = "Edit agent";
+      $("agentName").value = agent.name;
+      $("agentDescription").value = agent.description || "";
+      $("agentInstructions").value = agent.instructions;
+      $("agentCancelBtn").classList.remove("hidden");
+    };
+
+    window.deleteAgent = async (id) => {
+      await api(`/v1/agents/${id}`, { method: "DELETE" });
+      await refresh();
+    };
+
+    window.editWorkflow = (id) => {
+      const workflow = state.workflows.find((item) => item.id === id);
+      if (!workflow) return;
+      state.editWorkflowId = id;
+      $("workflowFormTitle").textContent = "Edit workflow";
+      $("workflowName").value = workflow.name;
+      $("workflowDescription").value = workflow.description || "";
+      $("workflowSteps").value = workflow.steps.join("\n");
+      $("workflowCancelBtn").classList.remove("hidden");
+    };
+
+    window.chooseWorkflow = (id) => {
+      state.pendingWorkflowId = id;
+      setView("chat");
+      renderSelectors();
+    };
+
+    window.deleteWorkflow = async (id) => {
+      await api(`/v1/workflows/${id}`, { method: "DELETE" });
+      await refresh();
+    };
+
+    $("authForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setAuthStatus("Working...");
+      try {
+        const path = state.mode === "login" ? "/auth/login" : "/auth/register";
+        const payload = {
+          email: $("email").value,
+          password: $("password").value,
+          display_name: $("displayName").value
+        };
+        const data = await api(path, { method: "POST", body: JSON.stringify(payload) });
+        state.token = data.access_token;
+        localStorage.setItem("infinity_token", state.token);
+        await refresh();
+        showApp();
+        setStatus("Ready");
+      } catch (err) {
+        setAuthStatus(err.message);
+      }
+    });
+
+    $("chatForm").addEventListener("submit", sendChat);
+    $("loginTab").addEventListener("click", () => setAuthMode("login"));
+    $("registerTab").addEventListener("click", () => setAuthMode("register"));
+    $("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("infinity_token");
+      state.token = null;
+      showAuth();
+    });
+    $("nav").addEventListener("click", (event) => {
+      if (event.target.dataset.view) setView(event.target.dataset.view);
+    });
+    $("newChatBtn").addEventListener("click", () => {
+      state.sessionId = newId();
+      localStorage.setItem("infinity_session", state.sessionId);
+      $("messages").innerHTML = "";
+      setStatus("New chat ready");
+    });
+    $("codeBtn").addEventListener("click", () => {
+      $("chatInput").value = $("chatInput").value || "Write code for ";
+      $("chatInput").focus();
+    });
+    $("workflowChatBtn").addEventListener("click", () => {
+      state.pendingWorkflowId = Number($("workflowSelect").value) || null;
+      $("chatInput").focus();
+    });
+
+    $("fileForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = $("fileInput").files[0];
+      if (!file) return;
+      const form = new FormData();
+      form.append("file", file);
+      await api("/v1/files", { method: "POST", body: form });
+      $("fileInput").value = "";
+      await refresh();
+    });
+
+    $("memoryForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const content = $("memoryInput").value.trim();
+      if (!content) return;
+      await api("/v1/memories", { method: "POST", body: JSON.stringify({ content }) });
+      $("memoryInput").value = "";
+      await refresh();
+    });
+
+    $("agentForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const payload = {
+        name: $("agentName").value,
+        description: $("agentDescription").value,
+        instructions: $("agentInstructions").value
+      };
+      const path = state.editAgentId ? `/v1/agents/${state.editAgentId}` : "/v1/agents";
+      await api(path, { method: state.editAgentId ? "PUT" : "POST", body: JSON.stringify(payload) });
+      state.editAgentId = null;
+      event.target.reset();
+      $("agentFormTitle").textContent = "Create agent";
+      $("agentCancelBtn").classList.add("hidden");
+      await refresh();
+    });
+
+    $("agentCancelBtn").addEventListener("click", () => {
+      state.editAgentId = null;
+      $("agentForm").reset();
+      $("agentFormTitle").textContent = "Create agent";
+      $("agentCancelBtn").classList.add("hidden");
+    });
+
+    $("workflowForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const payload = {
+        name: $("workflowName").value,
+        description: $("workflowDescription").value,
+        steps: $("workflowSteps").value.split("\n").map((step) => step.trim()).filter(Boolean)
+      };
+      const path = state.editWorkflowId ? `/v1/workflows/${state.editWorkflowId}` : "/v1/workflows";
+      await api(path, { method: state.editWorkflowId ? "PUT" : "POST", body: JSON.stringify(payload) });
+      state.editWorkflowId = null;
+      event.target.reset();
+      $("workflowFormTitle").textContent = "Create workflow";
+      $("workflowCancelBtn").classList.add("hidden");
+      await refresh();
+    });
+
+    $("workflowRunBtn").addEventListener("click", async () => {
+      if (!state.editWorkflowId) return setStatus("Select a workflow first");
+      const data = await api(`/v1/workflows/${state.editWorkflowId}/run`, {
+        method: "POST",
+        body: JSON.stringify({ input: $("workflowInput").value || "", use_memory: $("memoryToggle").checked })
+      });
+      $("workflowOutput").classList.remove("hidden");
+      $("workflowOutput").textContent = data.final_output;
+    });
+
+    $("workflowCancelBtn").addEventListener("click", () => {
+      state.editWorkflowId = null;
+      $("workflowForm").reset();
+      $("workflowFormTitle").textContent = "Create workflow";
+      $("workflowCancelBtn").classList.add("hidden");
+    });
+
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition) {
+      $("listenBtn").disabled = true;
+      $("listenBtn").textContent = "No voice";
+    } else {
+      $("listenBtn").addEventListener("click", () => {
+        const recognition = new Recognition();
+        recognition.lang = "en-US";
+        recognition.onresult = (event) => {
+          $("chatInput").value = event.results[0][0].transcript;
+          $("chatInput").focus();
+        };
+        recognition.start();
+      });
+    }
+
+    boot();
+  </script>
+</body>
+</html>

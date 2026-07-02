@@ -203,6 +203,10 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# InfinityAI local runtime data
+data/
+uploads/
+
 # Ruff stuff:
 .ruff_cache/
 
