@@ -1,92 +1,74 @@
 # InfinityAI--Intel
 
-A local-first InfinityAI assistant built on FastAPI, SQLite, and a local Ollama model.
+This is my cool local AI helper! It runs on your computer and talks to you. It saves stuff, remembers things, and can make code and play with files.
 
-People can create an account, chat with Infinity, upload files, keep persistent memory, generate code, use browser voice, create AI agents, build workflows, and use their own default Jarvis assistant.
+## How to start (easy!)
 
-## Run locally
-
-```bash
+Open a terminal and type:
+```
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
+Then open: http://127.0.0.1:8000
 
-Open the web app:
+Files go in `uploads/<user_id>/` and the database is `data/infinity.db`.
 
-```text
-http://127.0.0.1:8000
+## Setup (like instructions)
+
+Make a file called `.env` and put these inside:
 ```
-
-The API stores local data in `data/infinity.db` and uploads in `uploads/<user_id>/`.
-
-## Environment
-
-Create a `.env` file:
-
-```bash
-INFINITYAI_API_KEY=my-secret-key-123
-INFINITYAI_JWT_SECRET=change-this-for-login-tokens
+INFINITYAI_API_KEY=your-secret-key
+INFINITYAI_JWT_SECRET=your-jwt-secret
 ```
+Also make sure Ollama is running here: `http://127.0.0.1:11434`
 
-Ollama should be running locally at `http://127.0.0.1:11434` with the configured model in `providers/ollama_provider.py`.
+## Login (so you can use it)
 
-## Auth
-
-User endpoints use a bearer token from login/register:
-
-```http
+When you log in you get a token. Send it like this:
+```
 Authorization: Bearer <token>
 ```
-
-The legacy model/chat API can still use:
-
-```http
-X-API-Key: my-secret-key-123
+Or use the old way:
+```
+X-API-Key: your-key
 ```
 
-## Main endpoints
+## What it can do (short)
 
-| Method | Path | Description |
-| --- | --- | --- |
-| GET | `/` | Static web app |
-| GET | `/health` | Health check |
-| POST | `/auth/register` | Create account and default Jarvis agent |
-| POST | `/auth/login` | Get bearer token |
-| GET | `/me` | Current user |
-| GET | `/v1/models` | List models |
-| POST | `/v1/chat/completions` | Chat with Infinity, memory, files, agents, or workflow |
-| GET/POST/DELETE | `/v1/memories` | Persistent memory |
-| GET/POST/DELETE | `/v1/files` | File upload and listing |
-| CRUD | `/v1/agents` | Custom AI agents |
-| CRUD | `/v1/workflows` | Prompt workflows |
-| POST | `/v1/workflows/{id}/run` | Run workflow steps |
+- Register and login
+- Chat with memory
+- Upload files
+- Make agents and workflows
 
-## Chat example
+## Important URLs
+
+- POST /auth/register — sign up
+- POST /auth/login — log in
+- POST /v1/chat/completions — chat
+- /v1/memories — manage memory
+- /v1/files — upload files
+- /v1/agents and /v1/workflows — make things
+
+## Example (quick)
 
 ```python
 import requests
 
-token = requests.post(
-    "http://127.0.0.1:8000/auth/login",
-    json={"email": "you@example.com", "password": "secret123"},
-).json()["access_token"]
+token = requests.post("http://127.0.0.1:8000/auth/login",
+    json={"email": "user@example.com", "password": "pass"}).json()["access_token"]
 
-response = requests.post(
-    "http://127.0.0.1:8000/v1/chat/completions",
+response = requests.post("http://127.0.0.1:8000/v1/chat/completions",
     headers={"Authorization": f"Bearer {token}"},
-    json={
-        "model": "infinity-1",
-        "session_id": "main",
-        "messages": [{"role": "user", "content": "Remember my favorite stack is FastAPI"}],
-        "use_memory": True,
-    },
-)
+    json={"model": "infinity-1", "messages": [{"role": "user", "content": "Hi"}], "use_memory": True})
 
 print(response.json()["choices"][0]["message"]["content"])
 ```
 
 ## Test
 
-```bash
+Run this to check:
+```
 python -m unittest test_mvp.py
 ```
+
+Have fun! 🎉
