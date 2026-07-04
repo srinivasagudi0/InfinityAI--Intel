@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>InfinityAI</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f766e'/%3E%3Cpath d='M18 44 32 14l14 30h-8l-3-7H29l-3 7h-8Zm13-13h2l-1-3-1 3Z' fill='white'/%3E%3C/svg%3E">
   <style>
     :root {
       color-scheme: light;
@@ -122,7 +123,8 @@
     header h1 { margin: 0; font-size: 22px; }
     header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
     .status { color: var(--muted); font-size: 13px; text-align: right; }
-    .view { display: none; min-height: 0; padding: 18px; }
+    .view { min-height: 0; padding: 18px; }
+    .view:not(.active) { display: none; }
     .view.active { display: grid; }
     .chat-layout {
       grid-template-columns: minmax(0, 1fr) 300px;
@@ -144,17 +146,19 @@
       white-space: pre-wrap;
       line-height: 1.45;
       border: 1px solid var(--line);
+      overflow-wrap: anywhere;
     }
     .message.user { justify-self: end; background: #e6f4f1; border-color: #b7d9d2; }
     .message.assistant { justify-self: start; background: #fff; }
     .composer { display: grid; gap: 10px; padding: 14px; border-top: 1px solid var(--line); }
     .composer-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
     .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .toolbar select { width: auto; min-width: 170px; max-width: 100%; }
     .toolbar label { display: flex; grid-template-columns: none; align-items: center; gap: 6px; color: var(--text); }
     .toolbar input[type="checkbox"] { width: auto; }
     .side-panel { padding: 14px; display: grid; gap: 14px; align-content: start; }
     .side-panel h3, .section h2 { margin: 0; }
-    .section {
+    .view.active.section {
       display: grid;
       grid-template-columns: minmax(280px, 420px) minmax(0, 1fr);
       gap: 16px;
@@ -173,6 +177,7 @@
       padding: 12px;
       display: grid;
       gap: 8px;
+      overflow-wrap: anywhere;
     }
     .item-title { font-weight: 700; }
     .item-meta { color: var(--muted); font-size: 12px; }
@@ -188,13 +193,20 @@
     .check-list input { width: auto; }
     .hidden { display: none !important; }
     @media (max-width: 860px) {
-      .auth-card, .shell, .chat-layout, .section { grid-template-columns: 1fr; }
+      .auth-card, .shell, .chat-layout, .view.active.section { grid-template-columns: 1fr; }
       aside { grid-template-rows: auto auto auto; }
       nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       nav button { text-align: center; padding-inline: 8px; }
       .chat-panel { min-height: 65vh; }
       header { align-items: flex-start; flex-direction: column; }
       .status { text-align: left; }
+    }
+    @media (max-width: 560px) {
+      .auth { padding: 12px; }
+      .auth-brand, .auth-form { padding: 22px; }
+      .composer-row { grid-template-columns: 1fr; }
+      .toolbar select, .toolbar button { width: 100%; }
+      .toolbar label { width: 100%; }
     }
   </style>
 </head>
@@ -350,6 +362,7 @@
       sessionId: localStorage.getItem("infinity_session") || newId(),
       editAgentId: null,
       editWorkflowId: null,
+      runWorkflowId: null,
       pendingWorkflowId: null,
       me: null,
       agents: [],
@@ -365,13 +378,31 @@
       if (state.token) headers.Authorization = `Bearer ${state.token}`;
       const res = await fetch(path, { ...options, headers: { ...headers, ...(options.headers || {}) } });
       const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
+      let data = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { detail: text };
+        }
+      }
       if (!res.ok) throw new Error(data.detail || "Request failed");
       return data;
     }
 
     function setStatus(text) { $("status").textContent = text; }
     function setAuthStatus(text) { $("authStatus").textContent = text; }
+    async function runSafely(working, done, action) {
+      setStatus(working);
+      try {
+        const result = await action();
+        setStatus(done);
+        return result;
+      } catch (err) {
+        setStatus(err.message);
+        return null;
+      }
+    }
     function escapeText(value) {
       return String(value || "").replace(/[&<>"']/g, (char) => ({
         "&": "&amp;",
@@ -428,6 +459,8 @@
       $("registerTab").classList.toggle("active", mode === "register");
       $("nameLabel").classList.toggle("hidden", mode === "login");
       $("authTitle").textContent = mode === "login" ? "Log in" : "Create account";
+      $("password").autocomplete = mode === "login" ? "current-password" : "new-password";
+      setAuthStatus("");
     }
 
     function setView(view) {
@@ -460,19 +493,24 @@
 
     function renderSelectors() {
       const jarvis = jarvisAgent();
+      const selectedAgent = $("agentSelect").value;
+      const selectedWorkflow = $("workflowSelect").value;
+      const checkedFiles = new Set(selectedFileIds().map(String));
       $("agentSelect").innerHTML = [`<option value="">Infinity</option>`]
         .concat(state.agents.map((agent) => `<option value="${agent.id}">${escapeText(agent.name)}</option>`))
         .join("");
       if (state.view === "jarvis" && jarvis) $("agentSelect").value = String(jarvis.id);
+      else if (selectedAgent) $("agentSelect").value = selectedAgent;
 
       $("workflowSelect").innerHTML = [`<option value="">No workflow</option>`]
         .concat(state.workflows.map((workflow) => `<option value="${workflow.id}">${escapeText(workflow.name)}</option>`))
         .join("");
       if (state.pendingWorkflowId) $("workflowSelect").value = String(state.pendingWorkflowId);
+      else if (selectedWorkflow) $("workflowSelect").value = selectedWorkflow;
 
       $("chatFiles").innerHTML = state.files.length
         ? state.files.map((file) => `
-          <label><input type="checkbox" value="${file.id}"> ${escapeText(file.filename)}</label>
+          <label><input type="checkbox" value="${file.id}" ${checkedFiles.has(String(file.id)) ? "checked" : ""}> ${escapeText(file.filename)}</label>
         `).join("")
         : `<div class="item-meta">No files uploaded.</div>`;
     }
@@ -519,6 +557,7 @@
           <div class="item-meta">${workflow.steps.length} step(s)</div>
           <div class="item-actions">
             <button onclick="editWorkflow(${workflow.id})">Edit</button>
+            <button onclick="runWorkflow(${workflow.id})">Run</button>
             <button onclick="chooseWorkflow(${workflow.id})">Chat</button>
             <button class="danger" onclick="deleteWorkflow(${workflow.id})">Delete</button>
           </div>
@@ -579,13 +618,17 @@
     }
 
     window.deleteFile = async (id) => {
-      await api(`/v1/files/${id}`, { method: "DELETE" });
-      await refresh();
+      await runSafely("Deleting file...", "File deleted", async () => {
+        await api(`/v1/files/${id}`, { method: "DELETE" });
+        await refresh();
+      });
     };
 
     window.deleteMemory = async (id) => {
-      await api(`/v1/memories/${id}`, { method: "DELETE" });
-      await refresh();
+      await runSafely("Deleting memory...", "Memory deleted", async () => {
+        await api(`/v1/memories/${id}`, { method: "DELETE" });
+        await refresh();
+      });
     };
 
     window.editAgent = (id) => {
@@ -600,14 +643,17 @@
     };
 
     window.deleteAgent = async (id) => {
-      await api(`/v1/agents/${id}`, { method: "DELETE" });
-      await refresh();
+      await runSafely("Deleting agent...", "Agent deleted", async () => {
+        await api(`/v1/agents/${id}`, { method: "DELETE" });
+        await refresh();
+      });
     };
 
     window.editWorkflow = (id) => {
       const workflow = state.workflows.find((item) => item.id === id);
       if (!workflow) return;
       state.editWorkflowId = id;
+      state.runWorkflowId = id;
       $("workflowFormTitle").textContent = "Edit workflow";
       $("workflowName").value = workflow.name;
       $("workflowDescription").value = workflow.description || "";
@@ -619,11 +665,42 @@
       state.pendingWorkflowId = id;
       setView("chat");
       renderSelectors();
+      setStatus("Workflow selected for next chat");
+    };
+
+    async function executeWorkflow() {
+      const workflowId = state.runWorkflowId || state.editWorkflowId;
+      if (!workflowId) {
+        setStatus("Choose a workflow to run");
+        return;
+      }
+      const data = await runSafely("Running workflow...", "Workflow complete", async () => api(`/v1/workflows/${workflowId}/run`, {
+        method: "POST",
+        body: JSON.stringify({
+          input: $("workflowInput").value || "",
+          agent_id: Number($("agentSelect").value) || null,
+          file_ids: selectedFileIds(),
+          use_memory: $("memoryToggle").checked
+        })
+      }));
+      if (!data) return;
+      $("workflowOutput").classList.remove("hidden");
+      $("workflowOutput").textContent = data.final_output;
+    }
+
+    window.runWorkflow = async (id) => {
+      state.runWorkflowId = id;
+      await executeWorkflow();
     };
 
     window.deleteWorkflow = async (id) => {
-      await api(`/v1/workflows/${id}`, { method: "DELETE" });
-      await refresh();
+      await runSafely("Deleting workflow...", "Workflow deleted", async () => {
+        await api(`/v1/workflows/${id}`, { method: "DELETE" });
+        if (state.editWorkflowId === id) state.editWorkflowId = null;
+        if (state.runWorkflowId === id) state.runWorkflowId = null;
+        if (state.pendingWorkflowId === id) state.pendingWorkflowId = null;
+        await refresh();
+      });
     };
 
     $("authForm").addEventListener("submit", async (event) => {
@@ -656,7 +733,8 @@
       showAuth();
     });
     $("nav").addEventListener("click", (event) => {
-      if (event.target.dataset.view) setView(event.target.dataset.view);
+      const button = event.target.closest("button[data-view]");
+      if (button) setView(button.dataset.view);
     });
     $("newChatBtn").addEventListener("click", () => {
       state.sessionId = newId();
@@ -679,18 +757,22 @@
       if (!file) return;
       const form = new FormData();
       form.append("file", file);
-      await api("/v1/files", { method: "POST", body: form });
-      $("fileInput").value = "";
-      await refresh();
+      await runSafely("Uploading file...", "File uploaded", async () => {
+        await api("/v1/files", { method: "POST", body: form });
+        $("fileInput").value = "";
+        await refresh();
+      });
     });
 
     $("memoryForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const content = $("memoryInput").value.trim();
       if (!content) return;
-      await api("/v1/memories", { method: "POST", body: JSON.stringify({ content }) });
-      $("memoryInput").value = "";
-      await refresh();
+      await runSafely("Saving memory...", "Memory saved", async () => {
+        await api("/v1/memories", { method: "POST", body: JSON.stringify({ content }) });
+        $("memoryInput").value = "";
+        await refresh();
+      });
     });
 
     $("agentForm").addEventListener("submit", async (event) => {
@@ -701,12 +783,14 @@
         instructions: $("agentInstructions").value
       };
       const path = state.editAgentId ? `/v1/agents/${state.editAgentId}` : "/v1/agents";
-      await api(path, { method: state.editAgentId ? "PUT" : "POST", body: JSON.stringify(payload) });
-      state.editAgentId = null;
-      event.target.reset();
-      $("agentFormTitle").textContent = "Create agent";
-      $("agentCancelBtn").classList.add("hidden");
-      await refresh();
+      await runSafely("Saving agent...", "Agent saved", async () => {
+        await api(path, { method: state.editAgentId ? "PUT" : "POST", body: JSON.stringify(payload) });
+        state.editAgentId = null;
+        event.target.reset();
+        $("agentFormTitle").textContent = "Create agent";
+        $("agentCancelBtn").classList.add("hidden");
+        await refresh();
+      });
     });
 
     $("agentCancelBtn").addEventListener("click", () => {
@@ -724,23 +808,18 @@
         steps: $("workflowSteps").value.split("\n").map((step) => step.trim()).filter(Boolean)
       };
       const path = state.editWorkflowId ? `/v1/workflows/${state.editWorkflowId}` : "/v1/workflows";
-      await api(path, { method: state.editWorkflowId ? "PUT" : "POST", body: JSON.stringify(payload) });
-      state.editWorkflowId = null;
-      event.target.reset();
-      $("workflowFormTitle").textContent = "Create workflow";
-      $("workflowCancelBtn").classList.add("hidden");
-      await refresh();
+      await runSafely("Saving workflow...", "Workflow saved", async () => {
+        const saved = await api(path, { method: state.editWorkflowId ? "PUT" : "POST", body: JSON.stringify(payload) });
+        state.runWorkflowId = saved.id;
+        state.editWorkflowId = null;
+        event.target.reset();
+        $("workflowFormTitle").textContent = "Create workflow";
+        $("workflowCancelBtn").classList.add("hidden");
+        await refresh();
+      });
     });
 
-    $("workflowRunBtn").addEventListener("click", async () => {
-      if (!state.editWorkflowId) return setStatus("Select a workflow first");
-      const data = await api(`/v1/workflows/${state.editWorkflowId}/run`, {
-        method: "POST",
-        body: JSON.stringify({ input: $("workflowInput").value || "", use_memory: $("memoryToggle").checked })
-      });
-      $("workflowOutput").classList.remove("hidden");
-      $("workflowOutput").textContent = data.final_output;
-    });
+    $("workflowRunBtn").addEventListener("click", executeWorkflow);
 
     $("workflowCancelBtn").addEventListener("click", () => {
       state.editWorkflowId = null;
