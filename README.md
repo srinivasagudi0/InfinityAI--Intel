@@ -72,3 +72,7 @@ python -m unittest test_mvp.py
 ```
 
 Have fun! 🎉
+
+I have hosted it on vercel if you ant tot try it ou without installing it. You can find it here: [https://infinityai-intel.vercel.app](https://infinityai-intel.vercel.app)
+
+This project took me about 2 weeks to make. I didn't know we had to devlog, so sorry about that.

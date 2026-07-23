@@ -225,3 +225,4 @@ __marimo__/
 # test because i will add my own ip address to this file and i dont want it to be public
 
 test_api.py
+.vercel
