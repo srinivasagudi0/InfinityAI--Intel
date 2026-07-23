@@ -1,6 +1,6 @@
 # InfinityAI--Intel
 
-This is my cool local AI helper! It runs on your computer and talks to you. It saves stuff, remembers things, and can make code and play with files.
+This is an open AI workspace for chat, memory, files, agents, and workflows. It opens directly into the app without accounts, passwords, or a login screen.
 
 ## How to start (easy!)
 
@@ -15,35 +15,23 @@ Files go in `uploads/<user_id>/` and the database is `data/infinity.db`.
 
 ## Setup (like instructions)
 
-Make a file called `.env` and put these inside:
+Make a file called `.env` and add the model configuration you want to use:
 ```
-INFINITYAI_API_KEY=your-secret-key
-INFINITYAI_JWT_SECRET=your-jwt-secret
+GEMINI_API_KEY=your-gemini-key
 ```
-Also make sure Ollama is running here: `http://127.0.0.1:11434`
+Without a cloud key, local development falls back to Ollama at `http://127.0.0.1:11434`.
 
-## Login (so you can use it)
-
-When you log in you get a token. Send it like this:
-```
-Authorization: Bearer <token>
-```
-Or use the old way:
-```
-X-API-Key: your-key
-```
+The browser creates a random local workspace ID automatically. API clients can optionally send their own value in the `X-Workspace-ID` header; requests without one use the public workspace.
 
 ## What it can do (short)
 
-- Register and login
+- Opens directly without login
 - Chat with memory
 - Upload files
 - Make agents and workflows
 
 ## Important URLs
 
-- POST /auth/register — sign up
-- POST /auth/login — log in
 - POST /v1/chat/completions — chat
 - /v1/memories — manage memory
 - /v1/files — upload files
@@ -54,11 +42,8 @@ X-API-Key: your-key
 ```python
 import requests
 
-token = requests.post("http://127.0.0.1:8000/auth/login",
-    json={"email": "user@example.com", "password": "pass"}).json()["access_token"]
-
 response = requests.post("http://127.0.0.1:8000/v1/chat/completions",
-    headers={"Authorization": f"Bearer {token}"},
+    headers={"X-Workspace-ID": "my-private-workspace"},
     json={"model": "infinity-1", "messages": [{"role": "user", "content": "Hi"}], "use_memory": True})
 
 print(response.json()["choices"][0]["message"]["content"])

@@ -27,33 +27,22 @@ class InfinityMvpTests(unittest.TestCase):
         main.db.init_db()
         cls.client = TestClient(main.app)
 
-    def register(self):
-        email = f"user-{uuid.uuid4().hex}@example.com"
-        response = self.client.post(
-            "/auth/register",
-            json={"email": email, "password": "secret123", "display_name": "Test User"},
-        )
-        self.assertEqual(response.status_code, 200, response.text)
-        token = response.json()["access_token"]
-        return {"Authorization": f"Bearer {token}"}
+    def workspace(self):
+        return {"X-Workspace-ID": f"test-{uuid.uuid4().hex}"}
 
-    def test_register_login_me_and_default_jarvis(self):
-        headers = self.register()
-
-        me = self.client.get("/me", headers=headers)
-        self.assertEqual(me.status_code, 200, me.text)
-
+    def test_open_workspace_has_default_jarvis_and_no_login(self):
+        headers = self.workspace()
         agents = self.client.get("/v1/agents", headers=headers).json()["data"]
         self.assertTrue(any(agent["name"] == "Jarvis" and agent["is_default"] for agent in agents))
+        self.assertEqual(self.client.post("/auth/login", json={}).status_code, 404)
+        self.assertEqual(self.client.post("/auth/register", json={}).status_code, 404)
 
-    def test_api_key_chat_still_works(self):
+    def test_chat_works_without_login(self):
         response = self.client.post(
             "/v1/chat/completions",
-            headers={"X-API-Key": "test-key"},
             json={
                 "model": "infinity-1",
-                "user_id": "legacy-user",
-                "session_id": "legacy-session",
+                "session_id": "open-session",
                 "messages": [{"role": "user", "content": "Hello"}],
             },
         )
@@ -61,7 +50,7 @@ class InfinityMvpTests(unittest.TestCase):
         self.assertEqual(response.json()["choices"][0]["message"]["content"], "FAKE: Hello")
 
     def test_memory_file_agent_and_workflow(self):
-        headers = self.register()
+        headers = self.workspace()
 
         chat = self.client.post(
             "/v1/chat/completions",

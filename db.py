@@ -153,6 +153,18 @@ def get_user_by_email(email):
         )
 
 
+def get_or_create_workspace_user(workspace_id):
+    email = f"workspace-{workspace_id}@infinity.local"
+    user = get_user_by_email(email)
+    if user:
+        return user
+    try:
+        user_id = create_user(email, "", "Guest")
+        return get_user(user_id)
+    except sqlite3.IntegrityError:
+        return get_user_by_email(email)
+
+
 def public_user(user):
     return {
         "id": user["id"],

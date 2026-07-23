@@ -1,22 +1,16 @@
-import hmac
-import os
 import re
-import sqlite3
 import uuid
 from pathlib import Path
 from typing import List, Optional
 
-import jwt
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import db
-from auth import create_token, decode_token, hash_password, verify_password
 from brain.prompt_builder import build_prompt as bp
 from providers.ollama_provider import ask_model
 
@@ -24,7 +18,6 @@ from providers.ollama_provider import ask_model
 load_dotenv()
 
 APP_VERSION = "1.0.0"
-API_KEY = os.getenv("INFINITYAI_API_KEY", "default-key")
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -46,7 +39,7 @@ TEXT_EXTENSIONS = {
 
 app = FastAPI(
     title="InfinityAI API",
-    description="A local-first InfinityAI assistant with accounts, memory, files, agents, workflows, and Jarvis.",
+    description="An open InfinityAI workspace with chat, memory, files, agents, workflows, and Jarvis.",
     version=APP_VERSION,
 )
 
@@ -57,21 +50,6 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=True,
 )
-
-api_key = APIKeyHeader(name="X-API-Key", auto_error=False)
-bearer = HTTPBearer(auto_error=False)
-
-
-class RegisterRequest(BaseModel):
-    email: str
-    password: str
-    display_name: Optional[str] = None
-
-
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
 
 class Message(BaseModel):
     role: str
@@ -117,51 +95,19 @@ def startup():
     db.init_db()
 
 
-def normalize_email(email):
-    return email.strip().lower()
-
-
-def require_password(password):
-    if len(password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
-
-
-def token_response(user):
-    return {
-        "access_token": create_token(user["id"]),
-        "token_type": "bearer",
-        "user": db.public_user(user),
-    }
-
-
-def current_user_from_credentials(credentials):
-    if not credentials:
-        return None
-    try:
-        user = db.get_user(decode_token(credentials.credentials))
-    except (jwt.PyJWTError, KeyError, ValueError):
-        raise HTTPException(status_code=401, detail="Invalid bearer token.")
-    if not user:
-        raise HTTPException(status_code=401, detail="User no longer exists.")
-    return user
-
-
-def auth_context(
-    key: Optional[str] = Depends(api_key),
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
+def workspace_user(
+    workspace_id: Optional[str] = Header(default=None, alias="X-Workspace-ID"),
 ):
-    user = current_user_from_credentials(credentials)
-    if user:
-        return {"type": "bearer", "user": user}
-    if key and hmac.compare_digest(key, API_KEY):
-        return {"type": "api_key", "user": None}
-    raise HTTPException(status_code=401, detail="Missing or invalid API key/token.")
+    clean_id = re.sub(r"[^A-Za-z0-9_-]", "", workspace_id or "")[:64] or "public"
+    db.init_db()
+    return db.get_or_create_workspace_user(clean_id)
 
 
-def require_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer)):
-    user = current_user_from_credentials(credentials)
-    if not user:
-        raise HTTPException(status_code=401, detail="Bearer login required.")
+def workspace_context(user=Depends(workspace_user)):
+    return {"type": "workspace", "user": user}
+
+
+def require_workspace(user=Depends(workspace_user)):
     return user
 
 
@@ -216,7 +162,7 @@ def agent_instructions(user_id, agent_id):
     if not agent_id:
         return None
     if not user_id:
-        raise HTTPException(status_code=401, detail="Bearer login required for agents.")
+        raise HTTPException(status_code=400, detail="A workspace is required for agents.")
     agent = db.get_owned("agents", agent_id, user_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found.")
@@ -227,7 +173,7 @@ def file_context(user_id, file_ids):
     if not file_ids:
         return None
     if not user_id:
-        raise HTTPException(status_code=401, detail="Bearer login required for file context.")
+        raise HTTPException(status_code=400, detail="A workspace is required for file context.")
     files = db.get_files(user_id, file_ids)
     parts = []
     for item in files:
@@ -301,35 +247,8 @@ def health():
     return {"status": "ok", "version": APP_VERSION}
 
 
-@app.post("/auth/register")
-def register(request: RegisterRequest):
-    db.init_db()
-    email = normalize_email(request.email)
-    require_password(request.password)
-    if "@" not in email:
-        raise HTTPException(status_code=400, detail="Enter a valid email address.")
-    try:
-        user_id = db.create_user(email, hash_password(request.password), request.display_name)
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=409, detail="An account already exists for this email.")
-    return token_response(db.get_user(user_id))
-
-
-@app.post("/auth/login")
-def login(request: LoginRequest):
-    user = db.get_user_by_email(normalize_email(request.email))
-    if not user or not verify_password(request.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
-    return token_response(user)
-
-
-@app.get("/me")
-def me(user=Depends(require_user)):
-    return db.public_user(user)
-
-
 @app.get("/v1/models")
-def list_models(_context=Depends(auth_context)):
+def list_models(_context=Depends(workspace_context)):
     return {
         "object": "list",
         "data": [
@@ -337,14 +256,14 @@ def list_models(_context=Depends(auth_context)):
                 "id": "infinity-1",
                 "object": "model",
                 "owned_by": "infinityai",
-                "description": "InfinityAI prototype powered by the configured local Ollama model.",
+                "description": "InfinityAI powered by the configured cloud model.",
             }
         ],
     }
 
 
 @app.post("/v1/chat/completions")
-def chat(request: ChatRequest, context=Depends(auth_context)):
+def chat(request: ChatRequest, context=Depends(workspace_context)):
     if not request.messages:
         raise HTTPException(status_code=400, detail="At least one message is required.")
 
@@ -364,8 +283,6 @@ def chat(request: ChatRequest, context=Depends(auth_context)):
             db.add_memory(user_db_id, memory)
 
     if request.workflow_id:
-        if not user_db_id:
-            raise HTTPException(status_code=401, detail="Bearer login required for workflows.")
         workflow_result = run_workflow(
             user_db_id,
             request.workflow_id,
@@ -404,12 +321,12 @@ def chat(request: ChatRequest, context=Depends(auth_context)):
 
 
 @app.get("/v1/memories")
-def list_user_memories(user=Depends(require_user)):
+def list_user_memories(user=Depends(require_workspace)):
     return {"data": db.list_memories(user["id"])}
 
 
 @app.post("/v1/memories")
-def create_memory(request: MemoryRequest, user=Depends(require_user)):
+def create_memory(request: MemoryRequest, user=Depends(require_workspace)):
     content = request.content.strip()
     if not content:
         raise HTTPException(status_code=400, detail="Memory content is required.")
@@ -417,19 +334,19 @@ def create_memory(request: MemoryRequest, user=Depends(require_user)):
 
 
 @app.delete("/v1/memories/{memory_id}")
-def delete_memory(memory_id: int, user=Depends(require_user)):
+def delete_memory(memory_id: int, user=Depends(require_workspace)):
     if not db.delete_owned("memories", memory_id, user["id"]):
         raise HTTPException(status_code=404, detail="Memory not found.")
     return {"deleted": True}
 
 
 @app.get("/v1/files")
-def list_files(user=Depends(require_user)):
+def list_files(user=Depends(require_workspace)):
     return {"data": [public_file(item) for item in db.list_owned("files", user["id"])]}
 
 
 @app.post("/v1/files")
-async def upload_file(file: UploadFile = File(...), user=Depends(require_user)):
+async def upload_file(file: UploadFile = File(...), user=Depends(require_workspace)):
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File is too large. Limit is 5 MB.")
@@ -449,7 +366,7 @@ async def upload_file(file: UploadFile = File(...), user=Depends(require_user)):
 
 
 @app.delete("/v1/files/{file_id}")
-def delete_file(file_id: int, user=Depends(require_user)):
+def delete_file(file_id: int, user=Depends(require_workspace)):
     item = db.get_owned("files", file_id, user["id"])
     if not item:
         raise HTTPException(status_code=404, detail="File not found.")
@@ -459,12 +376,12 @@ def delete_file(file_id: int, user=Depends(require_user)):
 
 
 @app.get("/v1/agents")
-def list_agents(user=Depends(require_user)):
+def list_agents(user=Depends(require_workspace)):
     return {"data": db.list_owned("agents", user["id"])}
 
 
 @app.post("/v1/agents")
-def create_agent(request: AgentRequest, user=Depends(require_user)):
+def create_agent(request: AgentRequest, user=Depends(require_workspace)):
     if not request.name.strip() or not request.instructions.strip():
         raise HTTPException(status_code=400, detail="Agent name and instructions are required.")
     return db.create_agent(
@@ -476,7 +393,7 @@ def create_agent(request: AgentRequest, user=Depends(require_user)):
 
 
 @app.get("/v1/agents/{agent_id}")
-def get_agent(agent_id: int, user=Depends(require_user)):
+def get_agent(agent_id: int, user=Depends(require_workspace)):
     agent = db.get_owned("agents", agent_id, user["id"])
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found.")
@@ -484,7 +401,7 @@ def get_agent(agent_id: int, user=Depends(require_user)):
 
 
 @app.put("/v1/agents/{agent_id}")
-def update_agent(agent_id: int, request: AgentRequest, user=Depends(require_user)):
+def update_agent(agent_id: int, request: AgentRequest, user=Depends(require_workspace)):
     if not request.name.strip() or not request.instructions.strip():
         raise HTTPException(status_code=400, detail="Agent name and instructions are required.")
     agent = db.update_agent(
@@ -500,7 +417,7 @@ def update_agent(agent_id: int, request: AgentRequest, user=Depends(require_user
 
 
 @app.delete("/v1/agents/{agent_id}")
-def delete_agent(agent_id: int, user=Depends(require_user)):
+def delete_agent(agent_id: int, user=Depends(require_workspace)):
     agent = db.get_owned("agents", agent_id, user["id"])
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found.")
@@ -511,12 +428,12 @@ def delete_agent(agent_id: int, user=Depends(require_user)):
 
 
 @app.get("/v1/workflows")
-def list_workflows(user=Depends(require_user)):
+def list_workflows(user=Depends(require_workspace)):
     return {"data": db.normalize_workflows(db.list_owned("workflows", user["id"]))}
 
 
 @app.post("/v1/workflows")
-def create_workflow(request: WorkflowRequest, user=Depends(require_user)):
+def create_workflow(request: WorkflowRequest, user=Depends(require_workspace)):
     steps = [step.strip() for step in request.steps if step.strip()]
     if not request.name.strip() or not steps:
         raise HTTPException(status_code=400, detail="Workflow name and at least one step are required.")
@@ -524,7 +441,7 @@ def create_workflow(request: WorkflowRequest, user=Depends(require_user)):
 
 
 @app.get("/v1/workflows/{workflow_id}")
-def get_workflow(workflow_id: int, user=Depends(require_user)):
+def get_workflow(workflow_id: int, user=Depends(require_workspace)):
     workflow = db.normalize_workflow(db.get_owned("workflows", workflow_id, user["id"]))
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found.")
@@ -532,7 +449,7 @@ def get_workflow(workflow_id: int, user=Depends(require_user)):
 
 
 @app.put("/v1/workflows/{workflow_id}")
-def update_workflow(workflow_id: int, request: WorkflowRequest, user=Depends(require_user)):
+def update_workflow(workflow_id: int, request: WorkflowRequest, user=Depends(require_workspace)):
     steps = [step.strip() for step in request.steps if step.strip()]
     if not request.name.strip() or not steps:
         raise HTTPException(status_code=400, detail="Workflow name and at least one step are required.")
@@ -549,14 +466,14 @@ def update_workflow(workflow_id: int, request: WorkflowRequest, user=Depends(req
 
 
 @app.delete("/v1/workflows/{workflow_id}")
-def delete_workflow(workflow_id: int, user=Depends(require_user)):
+def delete_workflow(workflow_id: int, user=Depends(require_workspace)):
     if not db.delete_owned("workflows", workflow_id, user["id"]):
         raise HTTPException(status_code=404, detail="Workflow not found.")
     return {"deleted": True}
 
 
 @app.post("/v1/workflows/{workflow_id}/run")
-def run_user_workflow(workflow_id: int, request: WorkflowRunRequest, user=Depends(require_user)):
+def run_user_workflow(workflow_id: int, request: WorkflowRunRequest, user=Depends(require_workspace)):
     return run_workflow(user["id"], workflow_id, request)
 
 
