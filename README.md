@@ -2,6 +2,11 @@
 
 This is an open AI workspace for chat, memory, files, agents, and workflows. It opens directly into the app without accounts, passwords, or a login screen.
 
+
+# AI Usage
+
+I used AI to help me with the css and readme 'how to start' intro.
+
 ## How to start (easy!)
 
 Open a terminal and type:
