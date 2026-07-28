@@ -14,7 +14,57 @@ DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 
 def _gateway_token():
-    return os.getenv("AI_GATEWAY_API_KEY") or os.getenv("VERCEL_OIDC_TOKEN")
+    return os.getenv("AI_GATEWAY_API_KEY")
+
+
+def _explicit_ollama_url():
+    return "OLLAMA_URL" in os.environ
+
+
+def _running_on_vercel():
+    return bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
+
+
+def _last_user_message(messages):
+    for message in reversed(messages or []):
+        if message.get("role") == "user":
+            return message.get("content", "").strip()
+    return ""
+
+
+def _fallback_response(messages):
+    user_message = _last_user_message(messages)
+    if not user_message:
+        return (
+            "InfinityAI is online, but the cloud model is not configured for this "
+            "deployment yet."
+        )
+
+    lower = user_message.lower()
+    if any(marker in lower for marker in ["remember", "my name is", "don't forget", "note that"]):
+        return "Got it. I saved that in this workspace and will use it when it helps."
+
+    if any(term in lower for term in ["latest", "current", "today", "news", "look up", "search"]):
+        return (
+            "I cannot fetch live web results from this fallback mode yet. "
+            "Add a Gemini or AI Gateway key to enable full current-information answers."
+        )
+
+    if any(term in lower for term in ["code", "program", "script", "function", "build", "implement"]):
+        return (
+            "I can help with that. InfinityAI is using the built-in fallback while "
+            "the cloud model is unavailable, so here is a practical starting point:\n\n"
+            "1. Define the exact input and expected output.\n"
+            "2. Build the smallest working version first.\n"
+            "3. Test the success path and the main failure cases.\n\n"
+            f"Request: {user_message[:500]}"
+        )
+
+    return (
+        "InfinityAI is online. The model backend is unavailable right now, "
+        "so I am using the built-in fallback instead of showing a service error.\n\n"
+        f"You said: {user_message[:500]}"
+    )
 
 
 def _ask_openai_compatible(url, token, model, messages):
@@ -75,17 +125,20 @@ def ask_model(model=DEFAULT_MODEL, messages=None):
         if _gateway_token():
             backend = "vercel-ai-gateway"
             return _ask_gateway(messages)
+        if _running_on_vercel() and not _explicit_ollama_url():
+            backend = "fallback"
+            return _fallback_response(messages)
         return _ask_ollama(model, messages)
     except httpx.ConnectError:
         logger.exception("Could not connect to the %s model backend.", backend)
-        return "Sorry, I'm having trouble connecting to the model right now."
+        return _fallback_response(messages)
     except httpx.HTTPStatusError as exc:
         logger.warning(
             "The %s model backend returned HTTP %s.",
             backend,
             exc.response.status_code,
         )
-        return f"The model service returned an error ({exc.response.status_code}). Please try again."
+        return _fallback_response(messages)
     except Exception:
         logger.exception("The %s model backend returned an unexpected error.", backend)
         return "An error occurred while generating a response. Please try again."

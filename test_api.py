@@ -1,28 +1,38 @@
+import os
+
 import requests
 
-BASE_URL = "http://192.168.1.7:8000"   # replace with your IP
-API_KEY  = "my-secret-key-123"           # must match your .env
 
-headers = {
-    "X-API-Key": API_KEY,
-    "Content-Type": "application/json"
-}
+BASE_URL = os.getenv("INFINITYAI_BASE_URL", "http://127.0.0.1:8000")
+WORKSPACE_ID = os.getenv("INFINITYAI_WORKSPACE_ID", "manual-api-check")
 
-# Test 1 — list models
-response = requests.get(f"{BASE_URL}/v1/models", headers=headers)
-print("Models:", response.json())
 
-# Test 2 — chat
-payload = {
-    "model": "infinity-1",
-    "session_id": "test-session",
-    "user_id": "test-user",
-    "messages": [
-        {"role": "user", "content": "Explain what an API is"}
-    ]
-}
-response = requests.post(f"{BASE_URL}/v1/chat/completions", json=payload, headers=headers)
-data = response.json()
-print("Mode:", data["mode"])
-print("Reply:", data["choices"][0]["message"]["content"])
+def main():
+    headers = {
+        "X-Workspace-ID": WORKSPACE_ID,
+        "Content-Type": "application/json",
+    }
 
+    models = requests.get(f"{BASE_URL}/v1/models", headers=headers, timeout=20)
+    models.raise_for_status()
+    print("Models:", models.json())
+
+    payload = {
+        "model": "infinity-1",
+        "session_id": "test-session",
+        "messages": [{"role": "user", "content": "Explain what an API is"}],
+    }
+    chat = requests.post(
+        f"{BASE_URL}/v1/chat/completions",
+        json=payload,
+        headers=headers,
+        timeout=60,
+    )
+    chat.raise_for_status()
+    data = chat.json()
+    print("Mode:", data["mode"])
+    print("Reply:", data["choices"][0]["message"]["content"])
+
+
+if __name__ == "__main__":
+    main()

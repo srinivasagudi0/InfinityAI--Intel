@@ -28,6 +28,10 @@ GEMINI_API_KEY=your-gemini-key
 ```
 Without a cloud key, local development falls back to Ollama at `http://127.0.0.1:11434`.
 
+For Vercel, add either `GEMINI_API_KEY` or `AI_GATEWAY_API_KEY` in the project
+environment variables. If neither is configured, the hosted app uses a built-in
+fallback response instead of showing a model service error.
+
 The browser creates a random local workspace ID automatically. API clients can optionally send their own value in the `X-Workspace-ID` header; requests without one use the public workspace.
 
 ## What it can do (short)
