@@ -44,6 +44,53 @@ class ProviderRoutingTests(unittest.TestCase):
             "Bearer real-key",
         )
 
+    def test_openai_key_uses_openai_before_gateway(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "choices": [{"message": {"content": "openai response"}}]
+        }
+
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_API_KEY": "openai-key",
+                "AI_GATEWAY_API_KEY": "gateway-key",
+            },
+            clear=True,
+        ), patch("providers.ollama_provider.httpx.post", return_value=response) as post:
+            reply = ollama_provider.ask_model(messages=[{"role": "user", "content": "Hi"}])
+
+        self.assertEqual(reply, "openai response")
+        self.assertEqual(post.call_args.args[0], ollama_provider.OPENAI_URL)
+        self.assertEqual(
+            post.call_args.kwargs["headers"]["Authorization"],
+            "Bearer openai-key",
+        )
+        self.assertEqual(
+            post.call_args.kwargs["json"]["model"],
+            ollama_provider.DEFAULT_OPENAI_MODEL,
+        )
+        self.assertEqual(post.call_args.kwargs["json"]["max_completion_tokens"], 1024)
+        self.assertNotIn("max_tokens", post.call_args.kwargs["json"])
+
+    def test_openai_model_env_overrides_default(self):
+        response = Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = {
+            "choices": [{"message": {"content": "custom model response"}}]
+        }
+
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "openai-key", "OPENAI_MODEL": "gpt-custom"},
+            clear=True,
+        ), patch("providers.ollama_provider.httpx.post", return_value=response) as post:
+            reply = ollama_provider.ask_model(messages=[{"role": "user", "content": "Hi"}])
+
+        self.assertEqual(reply, "custom model response")
+        self.assertEqual(post.call_args.kwargs["json"]["model"], "gpt-custom")
+
     def test_gateway_403_returns_fallback_not_raw_service_error(self):
         request = httpx.Request("POST", ollama_provider.AI_GATEWAY_URL)
         response = httpx.Response(403, request=request)

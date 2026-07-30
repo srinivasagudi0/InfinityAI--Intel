@@ -24,13 +24,18 @@ Files go in `uploads/<user_id>/` and the database is `data/infinity.db`.
 
 Make a file called `.env` and add the model configuration you want to use:
 ```
-GEMINI_API_KEY=your-gemini-key
+OPENAI_API_KEY=your-openai-key
+OPENAI_MODEL=gpt-5.6-terra
 ```
-Without a cloud key, local development falls back to Ollama at `http://127.0.0.1:11434`.
+`OPENAI_MODEL` is optional. Without a cloud key, local development falls back to
+Ollama at `http://127.0.0.1:11434`.
 
-For Vercel, add either `GEMINI_API_KEY` or `AI_GATEWAY_API_KEY` in the project
-environment variables. If neither is configured, the hosted app uses a built-in
-fallback response instead of showing a model service error.
+For Vercel, add `OPENAI_API_KEY` in the project environment variables, then
+redeploy. You can also set `OPENAI_MODEL` if you want a different OpenAI model.
+The app still supports `GEMINI_API_KEY` or `AI_GATEWAY_API_KEY`, but OpenAI is
+used first when `OPENAI_API_KEY` is present. If no cloud key is configured, the
+hosted app uses a built-in fallback response instead of showing a model service
+error.
 
 The browser creates a random local workspace ID automatically. API clients can optionally send their own value in the `X-Workspace-ID` header; requests without one use the public workspace.
 

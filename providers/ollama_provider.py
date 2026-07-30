@@ -7,9 +7,11 @@ import httpx
 logger = logging.getLogger(__name__)
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
 AI_GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions"
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
 DEFAULT_MODEL = "qwen2.5"
 DEFAULT_CLOUD_MODEL = "google/gemini-2.5-flash-lite"
+DEFAULT_OPENAI_MODEL = "gpt-5.6-terra"
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite"
 
 
@@ -67,14 +69,20 @@ def _fallback_response(messages):
     )
 
 
-def _ask_openai_compatible(url, token, model, messages):
+def _ask_openai_compatible(
+    url,
+    token,
+    model,
+    messages,
+    token_limit_field="max_tokens",
+):
     response = httpx.post(
         url,
         headers={"Authorization": f"Bearer {token}"},
         json={
             "model": model,
             "messages": messages or [],
-            "max_tokens": 1024,
+            token_limit_field: 1024,
         },
         timeout=60.0,
     )
@@ -90,6 +98,16 @@ def _ask_gateway(messages):
         token,
         model,
         messages,
+    )
+
+
+def _ask_openai(messages):
+    return _ask_openai_compatible(
+        OPENAI_URL,
+        os.environ["OPENAI_API_KEY"],
+        os.getenv("OPENAI_MODEL", DEFAULT_OPENAI_MODEL),
+        messages,
+        token_limit_field="max_completion_tokens",
     )
 
 
@@ -119,6 +137,9 @@ def _ask_ollama(model, messages):
 def ask_model(model=DEFAULT_MODEL, messages=None):
     backend = "ollama"
     try:
+        if os.getenv("OPENAI_API_KEY"):
+            backend = "openai"
+            return _ask_openai(messages)
         if os.getenv("GEMINI_API_KEY"):
             backend = "gemini"
             return _ask_gemini(messages)
